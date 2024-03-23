@@ -7,3 +7,4 @@ sys.path.append(base_path)
 
 # Constants
 data_path = os.path.abspath(os.path.join(base_path, "..", "data"))
+models_path = os.path.abspath(os.path.join(base_path, "..", "models", "data"))

@@ -31,6 +31,8 @@ conda env create -f environment.yml
 conda activate teco
 ```
 
+If you have a CUDA device available on your system, you may want to install [Tensorflow](https://www.tensorflow.org/install/pip) and [Pytorch](https://pytorch.org/get-started/locally/) again with CUDA enabled.
+
 If changes are made, the environment can be exported using the provided script.
 
 ```bash

@@ -4,3 +4,9 @@
 [submodule "src/data/tennis-tracking"]
 	path = src/data/tennis-tracking
 	url = git@github.com:ArtLabss/tennis-tracking.git
+[submodule "src/data/tracknet"]
+	path = src/data/tracknet
+	url = git@github.com:yastrebksv/TrackNet.git
+[submodule "src/data/tennis-court-detector"]
+	path = src/data/tennis-court-detector
+	url = git@github.com:yastrebksv/TennisCourtDetector.git
