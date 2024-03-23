@@ -1,4 +1,9 @@
 name: teco
 channels:
   - defaults
+dependencies:
+  - ipykernel
+  - matplotlib
+  - opencv
+  - tqdm
 
