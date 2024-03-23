@@ -1,0 +1,6 @@
+[submodule "src/data/tenniset"]
+	path = src/data/tenniset
+	url = https://github.com/HaydenFaulkner/Tennis
+[submodule "src/data/tennis-tracking"]
+	path = src/data/tennis-tracking
+	url = git@github.com:ArtLabss/tennis-tracking.git
