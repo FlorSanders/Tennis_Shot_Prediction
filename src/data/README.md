@@ -8,13 +8,13 @@ However, as these original projects were developed with different goals in mind 
 
 The source of our main dataset. The code in this repository is not used as the processing tasks are different for the project.
 
-## [Tennis Court Detector](https://github.com/yastrebksv/TennisCourtDetector)
+## [Tennis Project](https://github.com/yastrebksv/TennisProject)
 
-While Tennis Tracking offers court detection functionality, it makes use of classical machine learning techniques that are quite compute intensive and cannot be parallellized on GPU.
+While alternatives like [Tennis Tracking](https://github.com/ArtLabss/tennis-tracking) offers the same functionality, they makes use of classical machine learning techniques that are quite compute intensive and cannot be parallellized on GPU.
 
 This project offers a more modern Pytorch-based model for the tracking.  
 The code can be run with the `teco` environment used for this project.
 
 ### Bug fixes
 
-- [homography.py](./tennis-court-detector/homography.py): `tans_kps[i]` needs to be wrapped in `np.unsqueeze()` for the code to work.
+- [homography.py](./tennis-project/homography.py): `tans_kps[i]` needs to be wrapped in `np.unsqueeze()` for the code to work.
