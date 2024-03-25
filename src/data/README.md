@@ -18,3 +18,4 @@ The code can be run with the `teco` environment used for this project.
 ### Bug fixes
 
 - [homography.py](./tennis-project/homography.py): `tans_kps[i]` needs to be wrapped in `np.unsqueeze()` for the code to work.
+- [postprocess.py](./tennis-project/postprocess.py): In the function `line_intersection(line1, line2)`, the if-statement needs to be extended with `and not isinstance(intersection[0], Line)`.
