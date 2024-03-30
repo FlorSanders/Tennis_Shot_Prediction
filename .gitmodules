@@ -1,9 +1,9 @@
 [submodule "src/data/tenniset"]
-	path = src/data/tenniset
+	path = src/data/submodules/tenniset
 	url = https://github.com/HaydenFaulkner/Tennis
 [submodule "src/data/tennis-project"]
-	path = src/data/tennis-project
+	path = src/data/submodules/tennis-project
 	url = git@github.com:yastrebksv/TennisProject.git
 [submodule "VideoPose3D"]
-	path = src/data/VideoPose3D
+	path = src/data/submodules/VideoPose3D
 	url = https://github.com/facebookresearch/VideoPose3D.git
