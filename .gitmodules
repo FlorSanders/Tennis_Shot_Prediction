@@ -6,4 +6,4 @@
 	url = git@github.com:yastrebksv/TennisProject.git
 [submodule "src/data/submodules/VideoPose3D"]
 	path = src/data/submodules/VideoPose3D
-	url = https://github.com/facebookresearch/VideoPose3D.git
+	url = git@github.com:facebookresearch/VideoPose3D.git
