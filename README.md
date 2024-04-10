@@ -1,5 +1,11 @@
 # Predictive Modeling of Tennis Player Poses and Ball Trajectory (TECO)
 
+## Group Member Names and UNIs
+
+- Tawab Safi ([as7092](mailto:as7092@columbia.edu))
+- George Tamer ([gyt2107](mailto:gyt2107@columbia.edu))
+- Flor Sanders ([fps2116](mailto:fps2116@columbia.edu))
+
 ## Introduction
 
 The goal of the project is to perform time series prediction of player poses and ball trajectory in tennis matches.
