@@ -9,32 +9,11 @@ The ability to predict the movement of players and ball in a tennis point unlock
 
 ## Setup
 
-First, clone the repository to make a local copy and change directory.
+Clone the repository to make a local copy and change directory.
 
 ```bash
 git clone git@github.com:FlorSanders/adl_ai_tennis_coach.git
 cd adl_ai_tennis_coach
 ```
 
-This repository contains submodules, which are required for processing of the dataset.  
-In order to initialize them, run:
-
-```bash
-git submodule init
-git submodule update
-```
-
-Next, initiate a conda environment from the `environment.yml` file.
-
-```bash
-conda env create -f environment.yml
-conda activate teco
-```
-
-If you have a CUDA device available on your system, you may want to install [Tensorflow](https://www.tensorflow.org/install/pip) and [Pytorch](https://pytorch.org/get-started/locally/) again with CUDA enabled.
-
-If changes are made, the environment can be exported using the provided script.
-
-```bash
-bash export-environment.sh
-```
+Separate install instructions are provided in the modules of the `src` directory, as data processing, training and inference have different sets of required dependencies.
