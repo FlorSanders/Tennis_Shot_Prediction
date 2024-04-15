@@ -103,29 +103,55 @@ For downstream tasks, the new bounding boxes should be used rather than the orig
 
 - The known issues for the original bounding boxes are still valid, though less severe thanks to the pre-processing applied.
 
-## Modules
+## Setup
+
+This repository contains submodules, which are required for processing of the dataset.  
+In order to initialize them, run from the main repo directory:
+
+```bash
+git submodule init
+git submodule update
+```
+
+Next, initiate a conda environment from the `environment.yml` file.
+
+```bash
+cd ./src/data
+conda env create -f environment.yml
+conda activate teco
+```
+
+If you have a CUDA device available on your system, you may want to install [Tensorflow](https://www.tensorflow.org/install/pip) and [Pytorch](https://pytorch.org/get-started/locally/) again with CUDA enabled.
+
+If changes are made, the environment can be exported using the provided script.
+
+```bash
+bash export-environment.sh
+```
+
+### Modules
 
 For the data processing steps, we make use of pre-trained models wherever possible. The inference code for these models are included as submodules in this repository.
 
 However, as these original projects were developed with different goals in mind and over a wide timespan, care must be taken when trying to run them together.
 
-### [Tenniset](https://github.com/HaydenFaulkner/Tennis)
+#### [Tenniset](https://github.com/HaydenFaulkner/Tennis)
 
 The source of our main dataset. The code in this repository is not used as the processing tasks are different for the project.
 
-### [Tennis Project](https://github.com/yastrebksv/TennisProject)
+#### [Tennis Project](https://github.com/yastrebksv/TennisProject)
 
 While alternatives like [Tennis Tracking](https://github.com/ArtLabss/tennis-tracking) offers the same functionality, they makes use of classical machine learning techniques that are quite compute intensive and cannot be parallellized on GPU.
 
 This project offers a more modern Pytorch-based model for the tracking.  
 The code can be run with the `teco` environment used for this project.
 
-#### Bug fixes
+##### Bug fixes
 
 - [homography.py](./tennis-project/homography.py): `tans_kps[i]` needs to be wrapped in `np.unsqueeze()` for the code to work.
 - [postprocess.py](./tennis-project/postprocess.py): In the function `line_intersection(line1, line2)`, the if-statement needs to be extended with `and not isinstance(intersection[0], Line)`.
 
-### [MMPose](https://mmpose.readthedocs.io/en/latest/overview.html)
+#### [MMPose](https://mmpose.readthedocs.io/en/latest/overview.html)
 
 MMPose is an open-source toolkit for pose estimation tasks. We use it as a straight-forward interface to perform inference for pose detection on our tennis players.
 
