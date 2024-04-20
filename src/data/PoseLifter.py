@@ -23,11 +23,17 @@ class PoseLifter:
         self.dataset_path = dataset_path
         self.segments_path = os.path.join(dataset_path, "segments")
         self.labels_path = os.path.join(dataset_path,"labels")
+        self.segment_files = [f for f in os.listdir(self.segments_path) if f.endswith('.mp4')]
 
     def set_write_path(self, write_path):
         self.write_path = write_path
 
-    def process_segment(
+    def extract_3d_poses(self):
+        for _, segment_file in tqdm(enumerate(self.segment_files)):
+            segment_path = os.path.join(self.segments_path, segment_file)
+            self.__process_segment(segment_path)
+
+    def __process_segment(
         self,
         segment_path,
         crop_padding=50,
