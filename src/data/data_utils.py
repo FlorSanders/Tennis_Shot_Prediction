@@ -25,7 +25,7 @@ def read_segment_frames(
     - frames: Video frames for the segment
     - fps: Frames per second of the segment
     """
-
+    print(segment_path)
     assert os.path.exists(segment_path), "Segment path does not exist"
 
     # Open capture

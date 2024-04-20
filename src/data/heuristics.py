@@ -6,7 +6,7 @@ def keep_largest_volume_3D_pose_heuristic(player_poses: list[PlayerPose]):
     player_volumes = [pose.get_volume() for pose in player_poses]
 
     # Find the player with the largest volume
-    largest_volume_idx = np.argmax(player_volumes)
+    largest_volume_idx = np.argmax(player_volumes, axis=0)
 
     # Return the pose of the player with the largest volume
     return player_poses[largest_volume_idx]

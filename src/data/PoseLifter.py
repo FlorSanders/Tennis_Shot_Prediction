@@ -3,7 +3,7 @@ import os
 import numpy as np
 from data_utils import read_segment_frames, read_segment_labels, clean_bbox_sequence
 from tqdm import tqdm
-
+from pose_dataclasses import PlayerPose
 
 class PoseLifter:
     def __init__(self, crop_fn, dedup_heuristic_fn):
@@ -23,13 +23,15 @@ class PoseLifter:
         self.dataset_path = dataset_path
         self.segments_path = os.path.join(dataset_path, "segments")
         self.labels_path = os.path.join(dataset_path,"labels")
-        self.segment_files = [f for f in os.listdir(self.segments_path) if f.endswith('.mp4')][0]
+        self.segment_files = [f for f in os.listdir(self.segments_path) if f.endswith('.mp4')]
 
     def set_write_path(self, write_path):
         self.write_path = write_path
 
     def extract_3d_poses(self):
         for _, segment_file in tqdm(enumerate(self.segment_files)):
+            print("self.segments_path", self.segments_path)
+            print("segment_file", segment_file)
             segment_path = os.path.join(self.segments_path, segment_file)
             self.__process_segment(segment_path)
 
@@ -148,19 +150,21 @@ class PoseLifter:
         cropped_frame = self.crop_fn(frame, bbox, crop_padding, crop_img_width)
 
         # Detect pose
-        should_show = False
-        result_generator = self.inferencer(cropped_frame, show=should_show, vis_out_dir="/home/georgetamer/3d_poses", return_vis=True)
+        result_generator = self.inferencer(
+            cropped_frame, 
+            return_datasamples=True,
+            vis_out_dir="/home/georgetamer/3d_poses", 
+            show=False,  
+            return_vis=False)
+
         results = [result for result in result_generator]
 
-        # Keep best results
         for result in results:
-            print("result: ", result)
-            for prediction in result["predictions"]:
-                for item in prediction:
-                    # Parse item
-                    # pose_bbox = item["bbox"]
-                    keypoints = item["keypoints"]
+            predictions = result["predictions"]
+            if len(predictions) >= 1:
+                prediction_keypoints = [PlayerPose.from_npy(pose=pred.pred_instances.keypoints[0]) for pred in predictions]
+                keypoints = self.dedup_heuristic(prediction_keypoints)
+            else:
+                keypoints = predictions[0].pred_instances.keypoints
 
-
-        # APPLY HEURISTICS
         return np.array(keypoints)
