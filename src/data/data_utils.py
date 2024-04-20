@@ -203,13 +203,28 @@ def clean_bbox_sequence(
     court_sequence, 
     is_btm,
     derivative_threshold=5000,
-    make_plot=False,
 ):
-    # Look at center points to gather inconsistencies
+    center_points, bbox_areas = __extract_center_points(bbox_sequence, court_sequence, is_btm)
+    jump_points = __calculate_jump_points(center_points, bbox_areas, derivative_threshold)
+    
+    # Return if no cleaning needs to be done
+    if len(jump_points) == 0:
+        missing_points = np.zeros(len(center_points), dtype=bool)
+        return missing_points, bbox_sequence
+
+    missing_points = __process_jump_points(jump_points, bbox_sequence, center_points)
+    bbox_sequence_clean = __fill_gaps_with_linear_interpolation(missing_points, center_points, bbox_sequence)
+    
+    return missing_points, bbox_sequence_clean
+
+
+def __extract_center_points(
+    bbox_sequence,
+    court_sequence,
+    is_btm: bool,
+) -> tuple[np.ndarray[float], np.ndarray[float]]:
     center_points = np.zeros((len(bbox_sequence), 2))
     bbox_areas = np.zeros(len(bbox_sequence))
-    bbox_sequence_clean = np.copy(bbox_sequence)
-    missing_points = np.zeros(len(center_points), dtype=int)
 
     # Extract center points wrt court from 
     for i, (bbox, court_points) in enumerate(zip(bbox_sequence, court_sequence)):
@@ -238,7 +253,15 @@ def clean_bbox_sequence(
         # Save player center point referenced to court point
         center_points[i, 0] = x_player - x_ref
         center_points[i, 1] = y_player - y_ref
+    
+    return center_points, bbox_areas
 
+
+def __calculate_jump_points(
+    center_points: np.ndarray[float],
+    bbox_areas: np.ndarray[float],
+    derivative_threshold=5000,
+):
     # Compute first derivative
     center_points_derivative = np.vstack(([[0, 0]], center_points[:-1] - center_points[1:]))
     center_points_derivative = center_points_derivative[:,0]**2 + center_points_derivative[:,1]**2
@@ -258,11 +281,16 @@ def clean_bbox_sequence(
         center_points_derivative > derivative_threshold,
         bbox_areas < mean_area / 2,
     )).reshape(-1)
-    
-    # Return if no cleaning needs to be done
-    if len(jump_points) == 0:
-        return missing_points.astype(bool), bbox_sequence_clean
 
+    return jump_points
+
+
+def __process_jump_points(
+        jump_points: np.ndarray[int], 
+        bbox_sequence: np.ndarray[float], 
+        center_points: np.ndarray[float],
+    ) -> np.ndarray[bool]:
+    missing_points = np.zeros(len(center_points), dtype=int)
     # Process jump points
     indx_last = None
     missing_start = False
@@ -298,10 +326,16 @@ def clean_bbox_sequence(
         # Update last indx
         indx_last = indx
 
-    # Fill gaps in missing points by linear interpolation
+    return missing_points.astype(bool)
+
+
+def __fill_gaps_with_linear_interpolation(missing_points, center_points, bbox_sequence):
+    bbox_sequence_clean = np.copy(bbox_sequence)
     filled_center_points = np.copy(center_points)
     missing_starts = np.argwhere((missing_points[1:] - missing_points[:-1]) == 1).reshape(-1)
     missing_ends = np.argwhere((missing_points[1:] - missing_points[:-1]) == -1).reshape(-1)
+    print("Missing starts", missing_starts)
+    print("Missing ends", missing_ends)
     for i, missing_start in enumerate(missing_starts):
         # Get start value
         if missing_start != 0:
@@ -309,11 +343,6 @@ def clean_bbox_sequence(
             cp_start_value = filled_center_points[missing_start-1]
             bbox_start_value = bbox_sequence_clean[missing_start-1]
         else:
-            # This code chunk errored out on me
-            # # First valid value (TODO: fix if none is valid???)
-            # cp_start_value = filled_center_points[not missing_points.astype(bool)][0]
-            # bbox_start_value = bbox_sequence_clean[not missing_points.astype(bool)][0]
-
             # Assuming 'missing_points' is a boolean array indicating missing data points
             valid_indices = np.where(~missing_points)[0]  # '~' is the bitwise NOT operator, which inverts the boolean values
             if len(valid_indices) > 0:
@@ -342,8 +371,7 @@ def clean_bbox_sequence(
         filled_center_points[missing_start:missing_end+1] = np.linspace(cp_start_value, cp_end_value, n_points)
         bbox_sequence_clean[missing_start:missing_end+1] = np.linspace(bbox_start_value, bbox_end_value, n_points)
 
-    return missing_points.astype(bool), bbox_sequence_clean
-
+    return bbox_sequence_clean
 
 def visualize_frame_annotations(
     frame,
