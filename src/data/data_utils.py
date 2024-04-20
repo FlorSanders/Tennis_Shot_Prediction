@@ -309,9 +309,21 @@ def clean_bbox_sequence(
             cp_start_value = filled_center_points[missing_start-1]
             bbox_start_value = bbox_sequence_clean[missing_start-1]
         else:
-            # First valid value (TODO: fix if none is valid???)
-            cp_start_value = filled_center_points[not missing_points.astype(bool)][0]
-            bbox_start_value = bbox_sequence_clean[not missing_points.astype(bool)][0]
+            # This code chunk errored out on me
+            # # First valid value (TODO: fix if none is valid???)
+            # cp_start_value = filled_center_points[not missing_points.astype(bool)][0]
+            # bbox_start_value = bbox_sequence_clean[not missing_points.astype(bool)][0]
+
+            # Assuming 'missing_points' is a boolean array indicating missing data points
+            valid_indices = np.where(~missing_points)[0]  # '~' is the bitwise NOT operator, which inverts the boolean values
+            if len(valid_indices) > 0:
+                cp_start_value = filled_center_points[valid_indices[0]]
+                bbox_start_value = bbox_sequence_clean[valid_indices[0]]
+            else:
+                # Handle the case where no valid indices are found
+                cp_start_value = 0  # or some other default/fallback value
+                bbox_start_value = 0,0,0,0  # or some other default/fallback value
+
 
         # Get missing end
         if len(missing_ends) <= i:

@@ -4,9 +4,16 @@ import numpy as np
 from data_utils import read_segment_frames, read_segment_labels, clean_bbox_sequence
 from tqdm import tqdm
 from pose_dataclasses import PlayerPose
+# import time
 
 class PoseLifter:
-    def __init__(self, crop_fn, dedup_heuristic_fn):
+    def __init__(self, 
+                 crop_fn,
+                 dedup_heuristic_fn,
+                 dataset_path: str, 
+                 write_path: str,
+                 duplicate_work: bool = False
+                ):
         """
         Parameters:
         - crop_fn:            A function which accepts 
@@ -14,26 +21,31 @@ class PoseLifter:
                            These heuristics use the idea that in our context, players will be larger in the video frame than
                            ball boys and other peripheral humans. Examples include: max_x, max_y, max_volume...
         """
+        # modules / flags
         self.inferencer = MMPoseInferencer(pose3d="human3d", device="cuda")
         self.crop_fn = crop_fn
         self.dedup_heuristic = dedup_heuristic_fn
-        self.dataset_path = None
+        self.duplicate_work = duplicate_work
 
-    def set_dataset_path(self, dataset_path):
+        # Dataset path (source)
         self.dataset_path = dataset_path
         self.segments_path = os.path.join(dataset_path, "segments")
         self.labels_path = os.path.join(dataset_path,"labels")
         self.segment_files = [f for f in os.listdir(self.segments_path) if f.endswith('.mp4')]
 
-    def set_write_path(self, write_path):
+        # Write path (destination)
         self.write_path = write_path
 
     def extract_3d_poses(self):
-        for _, segment_file in tqdm(enumerate(self.segment_files)):
-            print("self.segments_path", self.segments_path)
-            print("segment_file", segment_file)
+        for i, segment_file in tqdm(enumerate(self.segment_files)):
             segment_path = os.path.join(self.segments_path, segment_file)
-            self.__process_segment(segment_path)
+            
+            should_process_segment = not os.path.exists(segment_path) or self.duplicate_work 
+            if should_process_segment:
+                # start = time.time()
+                self.__process_segment(segment_path)
+                # end = time.time()
+                # print(f"segment {i} processing time: ", end-start)
 
     def __process_segment(
         self,
@@ -42,9 +54,9 @@ class PoseLifter:
         crop_width=224,
     ):
         # Load frames
-        segment_dir, segment_filename = os.path.split(segment_path)
-        segment_name, segment_ext = os.path.splitext(segment_filename)
-        frames, fps = read_segment_frames(
+        _, segment_filename = os.path.split(segment_path)
+        segment_name, _ = os.path.splitext(segment_filename)
+        frames, _ = read_segment_frames(
             segment_path,
             labels_path=self.labels_path,
             load_valid_frames_only=True
@@ -86,12 +98,9 @@ class PoseLifter:
         )
 
         # Process frames
-        players_bbox_last = [None, None]
-        players_bbox_sequences = [[None] *  len(frames) , [None] * len(frames)]
         players_pose_sequences = [[None] *  len(frames) , [None] * len(frames)]
         for frame_index, frame in tqdm(enumerate(frames)):
             # Get frame labels
-            frame_height, frame_width, _ = frame.shape
             players_bbox = [player_top_bbox_sequence[frame_index], player_btm_bbox_sequence[frame_index]]
             players_bbox_clean = [top_bbox_clean[frame_index], btm_bbox_clean[frame_index]]
             players_missing = [top_missing_points[frame_index], btm_missing_points[frame_index]]
@@ -100,7 +109,7 @@ class PoseLifter:
             for is_btm, bbox in enumerate(players_bbox):
                 if players_missing[is_btm]:
                     # Try to recover player pose from best knowledge
-                    for i, bbox_candidate in enumerate([players_bbox_last[is_btm], players_bbox_clean[is_btm], players_bbox[is_btm]]):
+                    for _, bbox_candidate in enumerate(players_bbox_clean[is_btm], players_bbox[is_btm]):
                         # Skip invalid bboxes
                         if bbox_candidate is None:
                             continue
