@@ -1,44 +1,24 @@
-from dataclasses import dataclass
+from pose_dataclasses import PlayerPose
+import numpy as np
 
-@dataclass
-class Joint:
-    # Example shape:  (3,)
-    x: float
-    y: float
-    z: float
+def keep_largest_volume_3D_pose_heuristic(player_poses: list[PlayerPose]):
+    # Get the volume of each player
+    player_volumes = [pose.get_volume() for pose in player_poses]
 
-    @classmethod
-    def from_tuple(joint):
-        return Joint(x=joint[0], y=joint[1], z=joint[2])
+    # Find the player with the largest volume
+    largest_volume_idx = np.argmax(player_volumes)
 
-@dataclass
-class PlayerPose:
-    # Example shape: (17, 3)
-    pose: list[Joint]
-
-    def from_npy(pose):
-        return PlayerPose(pose=[Joint.from_tuple(j) for j in pose])
-
-@dataclass
-class PlayerPoseOverTime:
-    # Example shape: (165, 17, 3)
-    poses: list[PlayerPose]
-
-    @classmethod
-    def from_npy_file(npy_data):
-        return PlayerPoseOverTime(poses=[PlayerPose.from_npy(pose) for pose in npy_data])
+    # Return the pose of the player with the largest volume
+    return player_poses[largest_volume_idx]
 
 
-def keep_largest_width_3D_pose_heuristic(player_poses: list[PlayerPose]):
-    pass
-    # Parse bbox
-    # xb1, yb1, xb2, yb2 = pose_bbox[0]
-    # center_x = (xb1 + xb2) / 2
-    # center_y = (yb1 + yb2) / 2
-    # center_distance = ((crop_img_width / 2 - center_x)**2  + (crop_img_width / 2 - center_y)**2)**(1/2)
+def keep_largest_xspan_3D_pose_heuristic(player_poses: list[PlayerPose]):
+    player_xspans = [pose.get_x_span() for pose in player_poses]
+    largest_volume_idx = np.argmax(player_xspans)
+    return player_poses[largest_volume_idx]
 
-    # # Keep track of best prediction
-    # if center_distance < min_center_distance:
-    #     min_center_distance = center_distance
-    #     best_keypoints = keypoints
-    #     best_bbox = pose_bbox[0]
+
+def keep_largest_yspan_3D_pose_heuristic(player_poses: list[PlayerPose]):
+    player_yspans = [pose.get_volume() for pose in player_poses]
+    largest_volume_idx = np.argmax(player_yspans)
+    return player_poses[largest_volume_idx]

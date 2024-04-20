@@ -23,7 +23,7 @@ class PoseLifter:
         self.dataset_path = dataset_path
         self.segments_path = os.path.join(dataset_path, "segments")
         self.labels_path = os.path.join(dataset_path,"labels")
-        self.segment_files = [f for f in os.listdir(self.segments_path) if f.endswith('.mp4')]
+        self.segment_files = [f for f in os.listdir(self.segments_path) if f.endswith('.mp4')][0]
 
     def set_write_path(self, write_path):
         self.write_path = write_path
