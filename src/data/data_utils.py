@@ -213,7 +213,7 @@ def clean_bbox_sequence(
         return missing_points, bbox_sequence
 
     missing_points = __process_jump_points(jump_points, bbox_sequence, center_points)
-    bbox_sequence_clean = __fill_gaps_with_linear_interpolation(missing_points, center_points, bbox_sequence)
+    bbox_sequence_clean = __fill_gaps_with_linear_interpolation(missing_points, bbox_sequence, center_points)
     
     return missing_points, bbox_sequence_clean
 
@@ -329,7 +329,11 @@ def __process_jump_points(
     return missing_points.astype(bool)
 
 
-def __fill_gaps_with_linear_interpolation(missing_points, center_points, bbox_sequence):
+def __fill_gaps_with_linear_interpolation(
+        missing_points: np.ndarray[bool], 
+        bbox_sequence: np.ndarray[float], 
+        center_points: np.ndarray[float],
+    ) -> np.ndarray[float]:
     bbox_sequence_clean = np.copy(bbox_sequence)
     filled_center_points = np.copy(center_points)
     missing_starts = np.argwhere((missing_points[1:] - missing_points[:-1]) == 1).reshape(-1)
@@ -343,15 +347,15 @@ def __fill_gaps_with_linear_interpolation(missing_points, center_points, bbox_se
             cp_start_value = filled_center_points[missing_start-1]
             bbox_start_value = bbox_sequence_clean[missing_start-1]
         else:
-            # Assuming 'missing_points' is a boolean array indicating missing data points
-            valid_indices = np.where(~missing_points)[0]  # '~' is the bitwise NOT operator, which inverts the boolean values
+            valid_indices = np.where(not missing_points)[0]
+            print("valid_indices", valid_indices)
             if len(valid_indices) > 0:
                 cp_start_value = filled_center_points[valid_indices[0]]
                 bbox_start_value = bbox_sequence_clean[valid_indices[0]]
             else:
-                # Handle the case where no valid indices are found
-                cp_start_value = 0  # or some other default/fallback value
-                bbox_start_value = 0,0,0,0  # or some other default/fallback value
+                # Fallback when no valid indices are found
+                cp_start_value = 0 
+                bbox_start_value = 0,0,0,0
 
 
         # Get missing end
