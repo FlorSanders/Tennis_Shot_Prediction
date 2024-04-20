@@ -160,6 +160,44 @@ def read_segment_labels(
         player_top_pose_sequence,
     )
 
+
+def crop_frame(frame,
+              bbox,
+              crop_padding=50,
+            crop_img_width=256):
+    # Frame size
+    frame_height, frame_width = frame.shape[:2]
+
+    # Parse bounding box coords
+    # if np.any(bbox == None):
+    #     return best_keypoints, best_bbox
+
+    x1, y1, x2, y2 = bbox
+    xc, yc =  (x1 + x2) / 2, (y1 + y2) / 2
+    w, h = abs(x2 - x1), abs(y2 - y1)
+    d = max(w, h) + crop_padding * 2
+
+    # Define cropping indices
+    x_crop1, x_crop2 = int(xc - d/2), int(xc + d/2)
+    y_crop1, y_crop2 = int(yc - d/2), int(yc + d/2)
+
+    # Make sure we don't crop past the edges of the frame
+    x_crop_offset = min(frame_width - x_crop2, max(-x_crop1, 0))
+    y_crop_offset = min(frame_height - y_crop2, max(-y_crop1, 0))
+    x_crop1 += x_crop_offset
+    x_crop2 += x_crop_offset
+    y_crop1 += y_crop_offset
+    y_crop2 += y_crop_offset
+    
+    # Crop image
+    img = frame[y_crop1:y_crop2,  x_crop1:x_crop2].copy()
+
+    # Resize img
+    scale = d / crop_img_width
+    img = cv2.resize(img, (crop_img_width, crop_img_width))
+    return img
+
+
 def clean_bbox_sequence(
     bbox_sequence, 
     court_sequence, 
