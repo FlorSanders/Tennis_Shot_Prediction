@@ -169,9 +169,8 @@ def crop_frame(frame,
     frame_height, frame_width = frame.shape[:2]
 
     # Parse bounding box coords
-    # if np.any(bbox == None):
-    #     return best_keypoints, best_bbox
-
+    if np.any(bbox == None):
+        return frame
     x1, y1, x2, y2 = bbox
     xc, yc =  (x1 + x2) / 2, (y1 + y2) / 2
     w, h = abs(x2 - x1), abs(y2 - y1)
@@ -289,7 +288,7 @@ def __process_jump_points(
         jump_points: np.ndarray[int], 
         bbox_sequence: np.ndarray[float], 
         center_points: np.ndarray[float],
-    ) -> np.ndarray[bool]:
+    ) -> np.ndarray[int]:
     missing_points = np.zeros(len(center_points), dtype=int)
     # Process jump points
     indx_last = None
@@ -326,11 +325,11 @@ def __process_jump_points(
         # Update last indx
         indx_last = indx
 
-    return missing_points.astype(bool)
+    return missing_points.astype(int)
 
 
 def __fill_gaps_with_linear_interpolation(
-        missing_points: np.ndarray[bool], 
+        missing_points: np.ndarray[int], 
         bbox_sequence: np.ndarray[float], 
         center_points: np.ndarray[float],
     ) -> np.ndarray[float]:
@@ -347,7 +346,7 @@ def __fill_gaps_with_linear_interpolation(
             cp_start_value = filled_center_points[missing_start-1]
             bbox_start_value = bbox_sequence_clean[missing_start-1]
         else:
-            valid_indices = np.where(not missing_points)[0]
+            valid_indices = np.where(~missing_points)[0]
             print("valid_indices", valid_indices)
             if len(valid_indices) > 0:
                 cp_start_value = filled_center_points[valid_indices[0]]

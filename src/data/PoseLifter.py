@@ -37,10 +37,15 @@ class PoseLifter:
         self.write_path = write_path
 
     def extract_3d_poses(self):
+        existing_poses = os.listdir(self.write_path)
         for i, segment_file in tqdm(enumerate(self.segment_files)):
             segment_path = os.path.join(self.segments_path, segment_file)
-            
-            should_process_segment = not os.path.exists(segment_path) or self.duplicate_work 
+            top_pose_path = f"{os.path.join(self.write_path, segment_file)[:-4]}/_player_top_pose_3d.npy"
+            bottom_pose_path = f"{os.path.join(self.write_path, segment_file)[:-4]}/_player_btm_pose_3d.npy"
+            is_processed = os.path.exists(top_pose_path) and os.path.exists(bottom_pose_path)
+            print("\nPose Path", top_pose_path, bottom_pose_path)
+
+            should_process_segment = self.duplicate_work or not is_processed
             if should_process_segment:
                 # start = time.time()
                 self.__process_segment(segment_path)
@@ -88,13 +93,11 @@ class PoseLifter:
             player_btm_bbox_sequence,
             court_sequence,
             is_btm=True,
-            make_plot=True,
         )
         top_missing_points, top_bbox_clean = clean_bbox_sequence(
             player_top_bbox_sequence,
             court_sequence,
             is_btm=False,
-            make_plot=True,
         )
 
         # Process frames
@@ -109,7 +112,7 @@ class PoseLifter:
             for is_btm, bbox in enumerate(players_bbox):
                 if players_missing[is_btm]:
                     # Try to recover player pose from best knowledge
-                    for _, bbox_candidate in enumerate(players_bbox_clean[is_btm], players_bbox[is_btm]):
+                    for _, bbox_candidate in enumerate([players_bbox_clean[is_btm], players_bbox[is_btm]]):
                         # Skip invalid bboxes
                         if bbox_candidate is None:
                             continue
