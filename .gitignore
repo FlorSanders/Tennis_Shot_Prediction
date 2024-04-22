@@ -167,3 +167,6 @@ cython_debug/
 *.mp4
 *.avi
 *.mpeg
+
+# Produced when running notebook from command line
+*.nbconvert.ipynb
