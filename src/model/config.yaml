@@ -1,0 +1,14 @@
+network:
+  graph_module:
+    in_channels: 2
+    hidden_channels: 2
+    num_layers: 2
+    out_channels: 2
+  positional_encoder_module:
+    hidden_dim: 2
+    output_dim: 2
+  sequence_module:
+    input_size: 2
+    hidden_size: 2
+    num_layers: 1
+    bidirectional: False
