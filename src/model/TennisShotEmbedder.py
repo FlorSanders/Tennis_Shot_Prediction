@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch_geometric.nn.models import GAT
 from typing import Optional
 
+
 class TennisShotEmbedder(nn.Module):
     """
     Generate tennis frame shot embeddings from player poses & global 2D positions.
@@ -24,9 +25,9 @@ class TennisShotEmbedder(nn.Module):
         ---
         Args:
         - graph_module: GNN Network to process player pose graph
-        - position_al_enciding_module: MLP that encodes global 2D player position 
-        -
-        sequence_module: RNN responsible for temporal sequence modelling
+        - positional_encoding_module: MLP that encodes global 2D player position 
+        - sequence_module: RNN responsible for temporal sequence modelling
+        - output_module: MLP that processes the output of the sequence module
         - use_positional_encoding: Boolean flag to indicate whether to use the positional encoding module (for ablation study)       
         """
 
@@ -114,7 +115,7 @@ class SequenceModule(nn.Module):
     frame_embeddings = output sequence of embeddings
     """
 
-    def __init__(self, input_size, hidden_size, num_layers=1, bidirectional=False):
+    def __init__(self, in_channels, hidden_channels, num_layers=1, bidirectional=False):
         """
         Initialize 
         """
@@ -123,6 +124,8 @@ class SequenceModule(nn.Module):
         # I think the input_size should just be fixed as 1 
 
         super(SequenceModule, self).__init__()
+        input_size = in_channels
+        hidden_size = hidden_channels
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(input_size if i == 0 else hidden_size, hidden_size) for i in range(num_layers)])
         self.num_layers = num_layers
         self.hidden_size = hidden_size
@@ -130,13 +133,6 @@ class SequenceModule(nn.Module):
 
 
     def forward(self, x, h_t, c_t):
-
-        #x_shape = (1, embedding_size (input_size))
-        #h_t shape = (1, self.hidden_size)
-        #c_t shape = (1, self.hidden_size)
-        #outputs = (1, self.hidden_size)
-
-
         if h_t is None and c_t is None:
             h_t = [torch.zeros(1, self.hidden_size, dtype=x.dtype, device=x.device) for _ in range(self.num_layers)]
             c_t = [torch.zeros(1, self.hidden_size, dtype=x.dtype, device=x.device) for _ in range(self.num_layers)]
@@ -171,3 +167,13 @@ class PositionalEncodingModule(nn.Module):
         x = F.relu(self.hidden_layer(x))
         x = self.output_projection
         return x
+    
+
+class OutputModule(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(OutputModule, self).__init__()
+        self.output_projection = nn.Linear(input_size, output_size)
+
+
+    def forward(self, x):
+        return self.output_projection(x)
