@@ -28,6 +28,7 @@ def animate_pose_wireframe(poses_3d):
                 poses_3d[num][line, 1],
                 poses_3d[num][line, 2],
                 color="tab:blue",
+                marker="o",
             )
         # ax.scatter(poses_3d[num][:, 0], poses_3d[num][:, 1], poses_3d[num][:, 2])
         ax.set_xlabel("X")
