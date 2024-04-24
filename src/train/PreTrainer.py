@@ -1,3 +1,9 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from tqdm import tqdm
+
+
 class PreTrainer:
     def __init__(self, model, train_loader, val_loader, batch_size, lr, epochs):
         self.model = model

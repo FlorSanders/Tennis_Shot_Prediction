@@ -1,17 +1,16 @@
 model:
   graph_module:
-    in_channels: 2
-    hidden_channels: 2
-    num_layers: 2
-    out_channels: 2
+    in_channels: 3 # size of node feature vector
+    hidden_channels: 2 # pull from GAT paper
+    num_layers: 2 # pull from GAT paper
+    out_channels: 2 # pull from GAT paper
   positional_encoder_module:
-    hidden_dim: 2
-    output_dim: 2
+    hidden_dim: 32
   sequence_module:
-    in_channels: 2
-    hidden_channels: 2
-    num_layers: 1
+    in_channels: 2 # should be fixed from graph_module.out_channels
+    hidden_channels: 64 # chosen randomly
+    num_layers: 2 # chosen conservatively to start... increase?
     bidirectional: False
   output_module:
-    hidden_dim: 2
-    output_dim: 2
+    hidden_dim: 64
+    num_layers: 1

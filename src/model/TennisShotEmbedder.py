@@ -170,10 +170,22 @@ class PositionalEncodingModule(nn.Module):
     
 
 class OutputModule(nn.Module):
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, hidden_dim, output_size, num_layers):
         super(OutputModule, self).__init__()
-        self.output_projection = nn.Linear(input_size, output_size)
+        self.input_size = input_size
+        self.output_size = output_size
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+
+        self.layers = nn.ModuleList([
+            nn.Linear(input_size if i == 0 else hidden_dim, hidden_dim) for i in range(num_layers)
+            ])
+        
+        self.output_projection = nn.Linear(hidden_dim, output_size)
 
 
     def forward(self, x):
-        return self.output_projection(x)
+        for layer in self.layers:
+            x = F.relu(layer(x))
+        x = self.output_projection(x)
+        return x

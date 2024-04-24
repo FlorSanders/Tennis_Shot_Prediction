@@ -6,6 +6,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 from plot_utils import animate_pose_wireframe
+from torch_geometric.data import Data
 
 
 # Constants
@@ -14,6 +15,54 @@ dataset = "tenniset"
 dataset_path = os.path.join(data_path, dataset)
 labels_path = os.path.join(dataset_path, "shot_labels")
 videos_path = os.path.join(dataset_path, "videos")
+
+
+def build_human_pose_edge_index():
+    edges = [
+        # Head and shoulders
+        (0, 1),
+        (0, 2),
+        (1, 2),
+        (1, 3),
+        (2, 4),
+        (3, 5),
+        (4, 6),
+        (5, 6),
+
+        # Right arm
+        (5, 7),
+        (7, 9),
+
+        # Left arm
+        (6, 8),
+        (8, 10),
+
+        # Torso
+        (6,12),
+        (12, 11),
+        (11, 5)
+
+        # Left leg
+        (12, 14),
+        (14, 16),
+
+        # Right leg
+        (11, 13),
+        (13, 15)
+    ]
+
+    start_nodes = []
+    end_nodes = []
+    for edge in edges:
+        # one way
+        start_nodes.append(edge[0])
+        end_nodes.append(edge[1])
+
+        # the other way
+        start_nodes.append(edge[1])
+        end_nodes.append(edge[0])
+
+    return start_nodes, end_nodes
 
 
 class TennisDataset(torch.utils.data.Dataset):
@@ -147,7 +196,14 @@ class TennisDataset(torch.utils.data.Dataset):
             mask = np.all(positions_2d != None, axis=1)
             positions_2d[mask] *= -1
 
-        # TODO: Transform & Scale 3D Poses
+        # Transform & Scale 3D Poses
+        # TODO -- should test this logic
+        mean_torso_height_in_cm = 41
+        left_side_of_torso = np.linalg.norm(poses_3d[6] - poses_3d[12])
+        right_side_of_torso = np.linalg.norm(poses_3d[5] - poses_3d[11])
+        torso_height = (left_side_of_torso + right_side_of_torso) / 2
+        scale_factor = mean_torso_height_in_cm / torso_height
+        poses_3d *= scale_factor
 
         # Return annotations
         return poses_3d, positions_2d
@@ -175,8 +231,13 @@ class TennisDataset(torch.utils.data.Dataset):
                 self.items[index], self.annotations[index]
             )
 
+        # Construct Graph from 3D Poses
+        start_list, end_list = build_human_pose_edge_index()
+        edge_index = torch.tensor([start_list, end_list], dtype=torch.long)
+        pose_graph = Data(x = poses_3d, edge_index=edge_index)
+
         # Return annotations
-        return poses_3d, positions_2d
+        return poses_3d, positions_2d, pose_graph
 
 
 class ServeDataset(TennisDataset):
@@ -212,9 +273,12 @@ class ServeDataset(TennisDataset):
             self.class_map[c] = i
 
     def __getitem__(self, index):
-        poses_3d, positions_2d = super().__getitem__(index)
+        # Load
+        poses_3d, positions_2d, pose_graph = super().__getitem__(index)
         label = self.class_map[self.annotations[index]["info"]["Result"]]
-        return poses_3d, positions_2d, label
+
+        # Return annotations
+        return poses_3d, positions_2d, pose_graph, label
 
 
 class HitDataset(TennisDataset):
@@ -267,10 +331,10 @@ class HitDataset(TennisDataset):
         - class_label: Label for the segment
         """
 
-        poses_3d, positions_2d = super().__getitem__(index)
+        poses_3d, positions_2d, pose_graph = super().__getitem__(index)
         class_name = f'{self.annotations[index]["info"]["Side"]}_{self.annotations[index]["info"]["Type"]}'
         class_label = self.class_map[class_name]
-        return poses_3d, positions_2d, class_label
+        return poses_3d, positions_2d, pose_graph, class_label
 
 
 if __name__ == "__main__":
