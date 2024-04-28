@@ -4,6 +4,7 @@ import numpy as np
 import torch.nn.functional as F
 from torch_geometric.nn.models import GAT
 from typing import Optional
+import torch_geometric
 
 
 class TennisShotEmbedder(nn.Module):
@@ -50,32 +51,63 @@ class TennisShotEmbedder(nn.Module):
         - frame_embeddings: Sequence of tennis frame embeddings (features for downstream tasks) (N_seq x D_embedding)
         """
 
-        outputs = []
-        h_t = None
-        c_t = None 
+        # Handle Graph Processing
+        batch_size = len(graphs)
+        num_frames = graphs[0].num_graphs
+        graph_embeddings = self.compute_graph_embeddings(graphs)
 
-        # graphs = (#Frames, d_h) & global_positions = (2,)
-        for graph, global_pos in zip(graphs, global_positions):
-            # Process graph to get graph embedding
-            sequence_input = self.graph_module(graph)
-            
-            # Add global positional encoding
-            if self.use_positional_encoding:
-                positional_embedding = self.positional_encoding_module(global_pos)
-                sequence_input = torch.add(sequence_input, positional_embedding)
+        # Handle global positions
+        global_pos_embeddings = self.positional_encoding_module(global_positions.view(-1, 2))  # (batch * frame, h_dim)
+        global_pos_embeddings = global_pos_embeddings.view(batch_size, num_frames, -1)  # Reshape to (batch, frame, h_dim)
 
-            # Process sequence input through sequence module
-            y, h_t, c_t = self.sequence_module(sequence_input, h_t, c_t)
+        assert global_pos_embeddings.shape == graph_embeddings.shape, "Global Position Embeddings and Graph Embeddings should have the same shape"
 
-            # Process output through output module
-            y = self.output_module(y)
 
-            outputs.append(y)
+        # Combine embeddings
+        if self.use_positional_encoding:
+            combined_embeddings = graph_embeddings + global_pos_embeddings
+        else:
+            combined_embeddings = graph_embeddings
 
-        y = torch.stack(outputs, dim=0)  # Are we stacking the right dimension?
+        assert combined_embeddings.shape == graph_embeddings.shape, "Combined Embeddings shape should "
+
+        # Process sequence
+        sequence_output = self.sequence_module(combined_embeddings)  # (batch, frame, dim)
+
+        # Process final output
+        output = self.output_module(sequence_output.reshape(-1, sequence_output.size(2)))  # Flatten to (batch * frame, dim)
+        output = output.view(-1, sequence_output.size(1), 51)  # Reshape back to (batch, frame, 51)
+        output = output.view(batch_size, num_frames, 17, -1) # Reshape to (batch, frame, 17, 3)
+        assert output.shape == (batch_size, num_frames, 17, 3), "Output shape should be (batch, frame, 17, 3)"
+
+        return output
+
+    def compute_graph_embeddings(self, graphs):
+        """
+        Compute graph embeddings from Sequence of pose graphs, and then average (over what??)
+        ---
+        Args:
+        - graphs: Sequence of local player pose graphs (batch_size, N_seq, 17, 3)
+
+        Returns:
+        - graph_embeddings: Sequence of graph embeddings (batch_size, N_seq, D_graph_embedding)
+        """
         
-        # Tennis Frame Embeddings
-        return y
+        graph_embeddings_for_batch = []
+        batch_size = len(graphs)
+        num_frames = graphs[0].num_graphs
+        for seq_graph in graphs:
+            x = seq_graph['x']
+            edge_index = seq_graph['edge_index']
+            batch = seq_graph['batch']
+            graph_embeddings = self.graph_module(x, edge_index, batch)
+            dense_embeddings, _ = torch_geometric.utils.to_dense_batch(graph_embeddings, batch, max_num_nodes=17)
+            graph_embeddings_for_batch.append(dense_embeddings)
+        
+        graph_embeddings = torch.stack(graph_embeddings_for_batch, dim=0)
+        graph_embeddings = graph_embeddings.mean(dim = 2)
+        return graph_embeddings
+            
     
 class GraphModule(nn.Module):
     # https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.nn.models.GAT.html
@@ -94,13 +126,13 @@ class GraphModule(nn.Module):
             hidden_channels=hidden_channels,
             num_layers=num_layers,
             out_channels=out_channels
-        )
+        )  # Might want to consider using dropout here, should concat be = False? what about heads? 
 
-    def forward(self, graph):
+    def forward(self, x, edge_index, batch):
         """
         
         """
-        return self.graph_attention_network(graph)
+        return self.graph_attention_network(x, edge_index, batch)
 
         
 
@@ -124,24 +156,29 @@ class SequenceModule(nn.Module):
         # I think the input_size should just be fixed as 1 
 
         super(SequenceModule, self).__init__()
-        input_size = in_channels
-        hidden_size = hidden_channels
-        self.lstm_layers = nn.ModuleList([nn.LSTMCell(input_size if i == 0 else hidden_size, hidden_size) for i in range(num_layers)])
-        self.num_layers = num_layers
-        self.hidden_size = hidden_size
-        self.input_size = input_size
+        self.lstm = nn.LSTM(
+            input_size=in_channels,
+            hidden_size=hidden_channels,
+            num_layers=num_layers,
+            bidirectional=bidirectional,
+            batch_first=True
+        )
 
 
-    def forward(self, x, h_t, c_t):
-        if h_t is None and c_t is None:
-            h_t = [torch.zeros(1, self.hidden_size, dtype=x.dtype, device=x.device) for _ in range(self.num_layers)]
-            c_t = [torch.zeros(1, self.hidden_size, dtype=x.dtype, device=x.device) for _ in range(self.num_layers)]
+    def forward(self, x):
+        
+        # x: (batch, frame, h_dim)
+        # Initialize hidden and cell states
+        
+        batch_size = x.size(0)
+        h0 = torch.zeros(self.lstm.num_layers * (2 if self.lstm.bidirectional else 1), 
+                         batch_size, self.lstm.hidden_size).to(x.device)
+        c0 = torch.zeros(self.lstm.num_layers * (2 if self.lstm.bidirectional else 1), 
+                         batch_size, self.lstm.hidden_size).to(x.device)
+        
+        out, (hn, cn) = self.lstm(x, (h0, c0))
 
-        for layer in range(self.num_layers):
-            h_t[layer], c_t[layer] = self.lstm_layers[layer](input_t, (h_t[layer], c_t[layer]))
-            input_t = h_t[layer]
-
-        return input_t, h_t, c_t
+        return out
 
 
 
@@ -165,7 +202,7 @@ class PositionalEncodingModule(nn.Module):
     def forward(self, x):
         x = F.relu(self.input_projection(x))
         x = F.relu(self.hidden_layer(x))
-        x = self.output_projection
+        x = self.output_projection(x)
         return x
     
 

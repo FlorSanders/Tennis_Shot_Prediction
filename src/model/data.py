@@ -11,6 +11,7 @@ from torch_geometric.data import Data
 
 # Constants
 data_path = os.path.abspath(os.path.join(__file__, "..", "..", "..", "data"))
+data_path = '/home/florsanders/adl_ai_tennis_coach/data'
 dataset = "tenniset"
 dataset_path = os.path.join(data_path, dataset)
 labels_path = os.path.join(dataset_path, "shot_labels")
@@ -40,7 +41,7 @@ def build_human_pose_edge_index():
         # Torso
         (6,12),
         (12, 11),
-        (11, 5)
+        (11, 5),
 
         # Left leg
         (12, 14),
@@ -180,15 +181,30 @@ class TennisDataset(torch.utils.data.Dataset):
         is_near = annotation["player_is_near"]
         player_id = "btm" if is_near else "top"
 
+        # Define paths to data files
+        positions_2d_path = os.path.join(self.labels_path, f"{item}_player_{player_id}_position.npy")
+        poses_3d_path = os.path.join(self.labels_path, f"{item}_player_{player_id}_pose_3d.npy")
+
+        # Check if data files exist
+        if not os.path.exists(positions_2d_path) or not os.path.exists(poses_3d_path):
+            print(f"Skipping {item}: Data file not found.")
+            return None, None  # Return None to indicate that data should be skipped
+
         #  Load Data From File System
         positions_2d = np.load(
-            os.path.join(self.labels_path, f"{item}_player_{player_id}_position.npy"),
+            positions_2d_path,
             allow_pickle=True,
         )
         poses_3d = np.load(
-            os.path.join(self.labels_path, f"{item}_player_{player_id}_pose_3d.npy"),
+            poses_3d_path,
             allow_pickle=True,
         )
+
+        # Check data dimensions
+        if positions_2d.ndim != 2 or poses_3d.ndim != 3:
+            print(f"Skipping {item}: Incorrect dimensions - positions_2d {positions_2d.shape}, poses_3d {poses_3d.shape}")
+            return None, None  # Return None to indicate that data should be skipped
+
 
         # Rotate 2D positions 180° around center of court -> same point of reference
         # TODO: Apply scaling to 2D Poses
@@ -196,11 +212,14 @@ class TennisDataset(torch.utils.data.Dataset):
             mask = np.all(positions_2d != None, axis=1)
             positions_2d[mask] *= -1
 
+        #print('positions_2d', positions_2d.shape)
+        #print('poses_3d', poses_3d.shape)
+        
         # Transform & Scale 3D Poses
         # TODO -- should test this logic
         mean_torso_height_in_cm = 41
-        left_side_of_torso = np.linalg.norm(poses_3d[6] - poses_3d[12])
-        right_side_of_torso = np.linalg.norm(poses_3d[5] - poses_3d[11])
+        left_side_of_torso = np.linalg.norm(poses_3d[:,6,:] - poses_3d[:,12,:])
+        right_side_of_torso = np.linalg.norm(poses_3d[:,5,:] - poses_3d[:,11,:])
         torso_height = (left_side_of_torso + right_side_of_torso) / 2
         scale_factor = mean_torso_height_in_cm / torso_height
         poses_3d *= scale_factor
@@ -232,12 +251,28 @@ class TennisDataset(torch.utils.data.Dataset):
             )
 
         # Construct Graph from 3D Poses
-        start_list, end_list = build_human_pose_edge_index()
-        edge_index = torch.tensor([start_list, end_list], dtype=torch.long)
-        pose_graph = Data(x = poses_3d, edge_index=edge_index)
+        graphs = []
+        if poses_3d is not None and positions_2d is not None:
+            # For the targets variable: include all sequences except the first
+            targets = poses_3d[1:, :, :]
+            # Crop the last item for pose_3d and positions_2d
+            poses_3d = poses_3d[:-1, :, :]
+            positions_2d = positions_2d[:-1, :]
+            
 
-        # Return annotations
-        return poses_3d, positions_2d, pose_graph
+            # Construct Graph from 3D Poses
+            start_list, end_list = build_human_pose_edge_index()
+            edge_index = torch.tensor([start_list, end_list], dtype=torch.long)
+            for frame in poses_3d:
+                x = torch.tensor(frame, dtype=torch.float32)  # Convert frame to tensor
+                graph = Data(x=x, edge_index=edge_index)
+                graphs.append(graph)
+
+            # Return annotations
+            return poses_3d, positions_2d, graphs, targets
+        
+        else:
+            return None, None, None, None
 
 
 class ServeDataset(TennisDataset):
