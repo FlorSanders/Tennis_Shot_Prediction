@@ -11,7 +11,7 @@ from torch_geometric.data import Data
 
 # Constants
 data_path = os.path.abspath(os.path.join(__file__, "..", "..", "..", "data"))
-data_path = '/home/florsanders/adl_ai_tennis_coach/data'
+data_path = "/home/florsanders/adl_ai_tennis_coach/data"
 dataset = "tenniset"
 dataset_path = os.path.join(data_path, dataset)
 labels_path = os.path.join(dataset_path, "shot_labels")
@@ -29,27 +29,22 @@ def build_human_pose_edge_index():
         (3, 5),
         (4, 6),
         (5, 6),
-
         # Right arm
         (5, 7),
         (7, 9),
-
         # Left arm
         (6, 8),
         (8, 10),
-
         # Torso
-        (6,12),
+        (6, 12),
         (12, 11),
         (11, 5),
-
         # Left leg
         (12, 14),
         (14, 16),
-
         # Right leg
         (11, 13),
-        (13, 15)
+        (13, 15),
     ]
 
     start_nodes = []
@@ -182,8 +177,12 @@ class TennisDataset(torch.utils.data.Dataset):
         player_id = "btm" if is_near else "top"
 
         # Define paths to data files
-        positions_2d_path = os.path.join(self.labels_path, f"{item}_player_{player_id}_position.npy")
-        poses_3d_path = os.path.join(self.labels_path, f"{item}_player_{player_id}_pose_3d.npy")
+        positions_2d_path = os.path.join(
+            self.labels_path, f"{item}_player_{player_id}_position.npy"
+        )
+        poses_3d_path = os.path.join(
+            self.labels_path, f"{item}_player_{player_id}_pose_3d.npy"
+        )
 
         # Check if data files exist
         if not os.path.exists(positions_2d_path) or not os.path.exists(poses_3d_path):
@@ -202,9 +201,10 @@ class TennisDataset(torch.utils.data.Dataset):
 
         # Check data dimensions
         if positions_2d.ndim != 2 or poses_3d.ndim != 3:
-            print(f"Skipping {item}: Incorrect dimensions - positions_2d {positions_2d.shape}, poses_3d {poses_3d.shape}")
+            print(
+                f"Skipping {item}: Incorrect dimensions - positions_2d {positions_2d.shape}, poses_3d {poses_3d.shape}"
+            )
             return None, None  # Return None to indicate that data should be skipped
-
 
         # Rotate 2D positions 180° around center of court -> same point of reference
         # TODO: Apply scaling to 2D Poses
@@ -212,15 +212,12 @@ class TennisDataset(torch.utils.data.Dataset):
             mask = np.all(positions_2d != None, axis=1)
             positions_2d[mask] *= -1
 
-        #print('positions_2d', positions_2d.shape)
-        #print('poses_3d', poses_3d.shape)
-        
+        # print('positions_2d', positions_2d.shape)
+        # print('poses_3d', poses_3d.shape)
+
         # Transform & Scale 3D Poses
-        # TODO -- should test this logic
         mean_torso_height_in_cm = 41
-        left_side_of_torso = np.linalg.norm(poses_3d[:,6,:] - poses_3d[:,12,:])
-        right_side_of_torso = np.linalg.norm(poses_3d[:,5,:] - poses_3d[:,11,:])
-        torso_height = (left_side_of_torso + right_side_of_torso) / 2
+        torso_height = np.linalg.norm(poses_3d[:, 0, :] - poses_3d[:, 8, :])
         scale_factor = mean_torso_height_in_cm / torso_height
         poses_3d *= scale_factor
 
@@ -258,7 +255,6 @@ class TennisDataset(torch.utils.data.Dataset):
             # Crop the last item for pose_3d and positions_2d
             poses_3d = poses_3d[:-1, :, :]
             positions_2d = positions_2d[:-1, :]
-            
 
             # Construct Graph from 3D Poses
             start_list, end_list = build_human_pose_edge_index()
@@ -270,7 +266,7 @@ class TennisDataset(torch.utils.data.Dataset):
 
             # Return annotations
             return poses_3d, positions_2d, graphs, targets
-        
+
         else:
             return None, None, None, None
 
@@ -383,9 +379,6 @@ if __name__ == "__main__":
     print(len(dataset))
     indx = np.random.randint(len(dataset))
     print(dataset.items[indx])
-    poses_3d, positions_2d = dataset.__getitem__(indx)
+    poses_3d, positions_2d, pose_graph = dataset.__getitem__(indx)
     print(poses_3d.shape)
     print(positions_2d.shape)
-
-    ani = animate_pose_wireframe(poses_3d)
-    plt.show()
