@@ -217,7 +217,12 @@ class TennisDataset(torch.utils.data.Dataset):
 
         # Transform & Scale 3D Poses
         mean_torso_height_in_cm = 41
-        torso_height = np.linalg.norm(poses_3d[:, 0, :] - poses_3d[:, 8, :])
+        torso_height = np.linalg.norm(
+            poses_3d[:, 0, :] - poses_3d[:, 7, :]
+        )  # hips to belly
+        torso_height += np.linalg.norm(
+            poses_3d[:, 7, :] - poses_3d[:, 8, :]
+        )  # belly to neck
         scale_factor = mean_torso_height_in_cm / torso_height
         poses_3d *= scale_factor
 
