@@ -1,8 +1,8 @@
+import os
 import sys
 
-path_to_model_directory = "../model"
-
 # Add this path to sys.path
+path_to_model_directory = os.path.abspath(os.path.join(__file__, os.pardir, os.pardir, "model"))
 if path_to_model_directory not in sys.path:
     sys.path.append(path_to_model_directory)
 
@@ -12,7 +12,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 import random
-import os
 import time
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
@@ -291,40 +290,44 @@ def validate_data_format(labels_path):
 
             # Data file paths
             item_name = os.path.basename(annotation_file).replace("_info.json", "")
-            positions_2d_path = os.path.join(
+            btm_positions_2d_path = os.path.join(
                 labels_path, f"{item_name}_player_btm_position.npy"
             )
-            poses_3d_path = os.path.join(
-                labels_path, f"{item_name}_player_btm_pose_3d.npy"
+            btm_poses_3d_path = os.path.join(
+                labels_path, f"{item_name}_player_btm_pose_3d_rot.npy"
+            )
+            top_positions_2d_path = os.path.join(
+                labels_path, f"{item_name}_player_top_position.npy"
+            )
+            top_poses_3d_path = os.path.join(
+                labels_path, f"{item_name}_player_top_pose_3d_rot.npy"
             )
 
             # Check if data files exist
-            if not os.path.exists(positions_2d_path) or not os.path.exists(
-                poses_3d_path
+            if (
+                not os.path.exists(btm_positions_2d_path) 
+                or not os.path.exists(btm_poses_3d_path)
+                or not os.path.exists(top_positions_2d_path) 
+                or not os.path.exists(top_poses_3d_path)
             ):
                 is_valid = False
             else:
                 # Load data files
-                positions_2d = np.load(positions_2d_path, allow_pickle=True)
-                poses_3d = np.load(poses_3d_path, allow_pickle=True)
-
-                # if item_name in ["V006_0066", "V006_0178", "V009_1046", "V009_1639"]:
-                #     print("Position_2d_shape: ", positions_2d.shape)
-                #     print("Poses_3d_shape: ", poses_3d.shape)
+                positions_2d = [np.load(btm_positions_2d_path, allow_pickle=True), np.load(top_positions_2d_path, allow_pickle=True)]
+                poses_3d = [np.load(btm_poses_3d_path, allow_pickle=True), np.load(top_poses_3d_path, allow_pickle=True)]
 
                 # Check data dimensions
-                if positions_2d.ndim != 2 or positions_2d.shape[1] != 2:
-                    is_valid = False
-                if poses_3d.ndim != 3 or poses_3d.shape[1:] != (17, 3):
-                    is_valid = False
-
                 # Check for None values and data types
-                if positions_2d.dtype == np.object_ or poses_3d.dtype == np.object_:
-                    is_valid = False
-                if positions_2d is None or poses_3d is None:
-                    is_valid = False
-
-                # Additional checks like empty pose graphs can be added here if they are saved and loaded similarly
+                for pos_2d in positions_2d:
+                    if pos_2d.ndim != 2 or pos_2d.shape[1] != 2:
+                        is_valid = False
+                    if pos_2d.dtype == np.object_ or pos_2d is None:
+                        is_valid = False
+                for pos_3d in poses_3d:
+                    if pos_3d.ndim != 3 or pos_3d.shape[1:] != (17, 3):
+                        is_valid = False
+                    if pos_3d.dtype == np.object_ or poses_3d is None:
+                        is_valid = False
 
             # Update annotation if invalid
             if not is_valid:

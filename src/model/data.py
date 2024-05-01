@@ -5,7 +5,6 @@ import torch
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-from plot_utils import animate_pose_wireframe
 from torch_geometric.data import Data
 
 
@@ -181,7 +180,7 @@ class TennisDataset(torch.utils.data.Dataset):
             self.labels_path, f"{item}_player_{player_id}_position.npy"
         )
         poses_3d_path = os.path.join(
-            self.labels_path, f"{item}_player_{player_id}_pose_3d.npy"
+            self.labels_path, f"{item}_player_{player_id}_pose_3d_rot.npy"
         )
 
         # Check if data files exist
@@ -216,15 +215,15 @@ class TennisDataset(torch.utils.data.Dataset):
         # print('poses_3d', poses_3d.shape)
 
         # Transform & Scale 3D Poses
-        mean_torso_height_in_cm = 41
-        torso_height = np.linalg.norm(
-            poses_3d[:, 0, :] - poses_3d[:, 7, :]
+        target_torso_height = 1 # Doesn't really matter what we normalize to -> picking one
+        torso_height = np.sqrt(
+            np.sum((poses_3d[:, 0, :] - poses_3d[:, 7, :]) ** 2, axis=1)
         )  # hips to belly
-        torso_height += np.linalg.norm(
-            poses_3d[:, 7, :] - poses_3d[:, 8, :]
+        torso_height += np.sqrt(
+            np.sum((poses_3d[:, 7, :] - poses_3d[:, 8, :]) ** 2, axis=1)
         )  # belly to neck
-        scale_factor = mean_torso_height_in_cm / torso_height
-        poses_3d *= scale_factor
+        scale_factor = target_torso_height / torso_height
+        poses_3d *= np.expand_dims(scale_factor, (1, 2))
 
         # Return annotations
         return poses_3d, positions_2d

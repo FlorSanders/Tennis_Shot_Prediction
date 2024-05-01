@@ -161,10 +161,7 @@ def read_segment_labels(
     )
 
 
-def crop_frame(frame,
-              bbox,
-              crop_padding=50,
-            crop_img_width=256):
+def crop_frame(frame, bbox, crop_padding=50, crop_img_width=256):
     # Frame size
     frame_height, frame_width = frame.shape[:2]
 
@@ -172,13 +169,13 @@ def crop_frame(frame,
     if np.any(bbox == None):
         return frame
     x1, y1, x2, y2 = bbox
-    xc, yc =  (x1 + x2) / 2, (y1 + y2) / 2
+    xc, yc = (x1 + x2) / 2, (y1 + y2) / 2
     w, h = abs(x2 - x1), abs(y2 - y1)
     d = max(w, h) + crop_padding * 2
 
     # Define cropping indices
-    x_crop1, x_crop2 = int(xc - d/2), int(xc + d/2)
-    y_crop1, y_crop2 = int(yc - d/2), int(yc + d/2)
+    x_crop1, x_crop2 = int(xc - d / 2), int(xc + d / 2)
+    y_crop1, y_crop2 = int(yc - d / 2), int(yc + d / 2)
 
     # Make sure we don't crop past the edges of the frame
     x_crop_offset = min(frame_width - x_crop2, max(-x_crop1, 0))
@@ -187,9 +184,9 @@ def crop_frame(frame,
     x_crop2 += x_crop_offset
     y_crop1 += y_crop_offset
     y_crop2 += y_crop_offset
-    
+
     # Crop image
-    img = frame[y_crop1:y_crop2,  x_crop1:x_crop2].copy()
+    img = frame[y_crop1:y_crop2, x_crop1:x_crop2].copy()
 
     # Resize img
     scale = d / crop_img_width
@@ -198,22 +195,28 @@ def crop_frame(frame,
 
 
 def clean_bbox_sequence(
-    bbox_sequence, 
-    court_sequence, 
+    bbox_sequence,
+    court_sequence,
     is_btm,
     derivative_threshold=5000,
 ):
-    center_points, bbox_areas = __extract_center_points(bbox_sequence, court_sequence, is_btm)
-    jump_points = __calculate_jump_points(center_points, bbox_areas, derivative_threshold)
-    
+    center_points, bbox_areas = __extract_center_points(
+        bbox_sequence, court_sequence, is_btm
+    )
+    jump_points = __calculate_jump_points(
+        center_points, bbox_areas, derivative_threshold
+    )
+
     # Return if no cleaning needs to be done
     if len(jump_points) == 0:
         missing_points = np.zeros(len(center_points), dtype=bool)
         return missing_points, bbox_sequence
 
     missing_points = __process_jump_points(jump_points, bbox_sequence, center_points)
-    bbox_sequence_clean = __fill_gaps_with_linear_interpolation(missing_points, bbox_sequence, center_points)
-    
+    bbox_sequence_clean = __fill_gaps_with_linear_interpolation(
+        missing_points, bbox_sequence, center_points
+    )
+
     return missing_points, bbox_sequence_clean
 
 
@@ -225,7 +228,7 @@ def __extract_center_points(
     center_points = np.zeros((len(bbox_sequence), 2))
     bbox_areas = np.zeros(len(bbox_sequence))
 
-    # Extract center points wrt court from 
+    # Extract center points wrt court from
     for i, (bbox, court_points) in enumerate(zip(bbox_sequence, court_sequence)):
         # Skip no bounding box detected
         if np.any(bbox == None):
@@ -239,7 +242,7 @@ def __extract_center_points(
         if np.any(court_outline == None):
             center_points[i, :] = np.inf
             continue
-        
+
         # Get relevant center point of the court
         (xtl, ytl), (xtr, ytr), (xbl, ybl), (xbr, ybr) = court_outline
         x_ref = (xbl + xbr) / 2 if is_btm else (xtl + xtr) / 2
@@ -252,7 +255,7 @@ def __extract_center_points(
         # Save player center point referenced to court point
         center_points[i, 0] = x_player - x_ref
         center_points[i, 1] = y_player - y_ref
-    
+
     return center_points, bbox_areas
 
 
@@ -262,60 +265,70 @@ def __calculate_jump_points(
     derivative_threshold=5000,
 ):
     # Compute first derivative
-    center_points_derivative = np.vstack(([[0, 0]], center_points[:-1] - center_points[1:]))
-    center_points_derivative = center_points_derivative[:,0]**2 + center_points_derivative[:,1]**2
-    bbox_areas_derivative = np.abs(np.concatenate(([0], bbox_areas[:-1] - bbox_areas[1:])))
+    center_points_derivative = np.vstack(
+        ([[0, 0]], center_points[:-1] - center_points[1:])
+    )
+    center_points_derivative = (
+        center_points_derivative[:, 0] ** 2 + center_points_derivative[:, 1] ** 2
+    )
+    bbox_areas_derivative = np.abs(
+        np.concatenate(([0], bbox_areas[:-1] - bbox_areas[1:]))
+    )
 
     # Area jumps
-    bbox_area_jumps = np.sort(np.argwhere(bbox_areas_derivative > derivative_threshold).reshape(-1))
+    bbox_area_jumps = np.sort(
+        np.argwhere(bbox_areas_derivative > derivative_threshold).reshape(-1)
+    )
     if len(bbox_area_jumps):
         # print("JUMPS DETECTED")
         # print(bbox_area_jumps)
-        mean_area = np.mean(bbox_areas[:bbox_area_jumps[0]])
+        mean_area = np.mean(bbox_areas[: bbox_area_jumps[0]])
     else:
         mean_area = np.mean(bbox_areas)
 
     # Determine jump points
-    jump_points = np.argwhere(np.logical_or(
-        center_points_derivative > derivative_threshold,
-        bbox_areas < mean_area / 2,
-    )).reshape(-1)
+    jump_points = np.argwhere(
+        np.logical_or(
+            center_points_derivative > derivative_threshold,
+            bbox_areas < mean_area / 2,
+        )
+    ).reshape(-1)
 
     return jump_points
 
 
 def __process_jump_points(
-        jump_points: np.ndarray[int], 
-        bbox_sequence: np.ndarray[float], 
-        center_points: np.ndarray[float],
-    ) -> np.ndarray[int]:
+    jump_points: np.ndarray[int],
+    bbox_sequence: np.ndarray[float],
+    center_points: np.ndarray[float],
+) -> np.ndarray[int]:
     missing_points = np.zeros(len(center_points), dtype=int)
     # Process jump points
     indx_last = None
     missing_start = False
     for indx in jump_points:
-        #print(indx_last, indx)
+        # print(indx_last, indx)
         if indx_last is None:
             # First missing point
-            #print("FIRST MISSING POINT")
+            # print("FIRST MISSING POINT")
             missing_points[indx] = 1
             missing_start = True
         elif np.any(bbox_sequence[indx] == None):
             # Missing point
-            #print("MISSING POINT", indx)
+            # print("MISSING POINT", indx)
             missing_points[indx] = 1
             missing_start = False
         elif indx_last == indx - 1:
             # Subsequent problematic points
-            #print("SUBSEQUENT MISSING POINT")
+            # print("SUBSEQUENT MISSING POINT")
             missing_points[indx] = 1
             missing_start = False
         else:
             # Distance between missing points
-            #print("DISTANCE BETWEEN MISSING POINTS")
+            # print("DISTANCE BETWEEN MISSING POINTS")
             if missing_start:
                 # End point (hopefully)
-                missing_points[indx_last:indx+1] = 1
+                missing_points[indx_last : indx + 1] = 1
                 missing_start = False
             else:
                 # Start point (hopefully)
@@ -329,22 +342,26 @@ def __process_jump_points(
 
 
 def __fill_gaps_with_linear_interpolation(
-        missing_points: np.ndarray[int], 
-        bbox_sequence: np.ndarray[float], 
-        center_points: np.ndarray[float],
-    ) -> np.ndarray[float]:
+    missing_points: np.ndarray[int],
+    bbox_sequence: np.ndarray[float],
+    center_points: np.ndarray[float],
+) -> np.ndarray[float]:
     bbox_sequence_clean = np.copy(bbox_sequence)
     filled_center_points = np.copy(center_points)
-    missing_starts = np.argwhere((missing_points[1:] - missing_points[:-1]) == 1).reshape(-1)
-    missing_ends = np.argwhere((missing_points[1:] - missing_points[:-1]) == -1).reshape(-1)
+    missing_starts = np.argwhere(
+        (missing_points[1:] - missing_points[:-1]) == 1
+    ).reshape(-1)
+    missing_ends = np.argwhere(
+        (missing_points[1:] - missing_points[:-1]) == -1
+    ).reshape(-1)
     print("Missing starts", missing_starts)
     print("Missing ends", missing_ends)
     for i, missing_start in enumerate(missing_starts):
         # Get start value
         if missing_start != 0:
             # Previous value
-            cp_start_value = filled_center_points[missing_start-1]
-            bbox_start_value = bbox_sequence_clean[missing_start-1]
+            cp_start_value = filled_center_points[missing_start - 1]
+            bbox_start_value = bbox_sequence_clean[missing_start - 1]
         else:
             valid_indices = np.where(~missing_points)[0]
             print("valid_indices", valid_indices)
@@ -353,9 +370,8 @@ def __fill_gaps_with_linear_interpolation(
                 bbox_start_value = bbox_sequence_clean[valid_indices[0]]
             else:
                 # Fallback when no valid indices are found
-                cp_start_value = 0 
-                bbox_start_value = 0,0,0,0
-
+                cp_start_value = 0
+                bbox_start_value = 0, 0, 0, 0
 
         # Get missing end
         if len(missing_ends) <= i:
@@ -368,13 +384,18 @@ def __fill_gaps_with_linear_interpolation(
             missing_end = missing_ends[i]
             cp_end_value = filled_center_points[missing_end]
             bbox_end_value = bbox_sequence_clean[missing_end]
-            
+
         # Linearly interpolate
         n_points = missing_end - missing_start + 1
-        filled_center_points[missing_start:missing_end+1] = np.linspace(cp_start_value, cp_end_value, n_points)
-        bbox_sequence_clean[missing_start:missing_end+1] = np.linspace(bbox_start_value, bbox_end_value, n_points)
+        filled_center_points[missing_start : missing_end + 1] = np.linspace(
+            cp_start_value, cp_end_value, n_points
+        )
+        bbox_sequence_clean[missing_start : missing_end + 1] = np.linspace(
+            bbox_start_value, bbox_end_value, n_points
+        )
 
     return bbox_sequence_clean
+
 
 def visualize_frame_annotations(
     frame,
