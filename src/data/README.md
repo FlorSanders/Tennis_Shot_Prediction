@@ -2,7 +2,8 @@
 
 The data processing pipeline is responsible for performing automated video annotation. The problem is broken down into subtasks discussed below.
 
-Each step is implemented as a chapter in the `data_processing.ipynb` notebook. Furthermore, `data_utils.py` implements some tools for loading and visualizing the annotated data.
+Steps 1 to 3 are implemented as a chapter in the `1_data_processing_base.ipynb` notebook, with step 4 and 5 residing in `2_data_processing_3d.ipynb` and `3_data_split.ipynb`.
+Furthermore, `data_utils.py` implements some tools for loading and visualizing the annotated data.
 
 ## Processing Steps
 
@@ -102,6 +103,24 @@ For downstream tasks, the new bounding boxes should be used rather than the orig
 #### Known issues
 
 - The known issues for the original bounding boxes are still valid, though less severe thanks to the pre-processing applied.
+
+### Step 4 - Player 3D Pose Detection
+
+For 3D pose detection, we likewise make ise of the models available in [MMPose](https://mmpose.readthedocs.io/en/latest/overview.html).  
+The pose detection returns a sequence of 17 coordinates `(x,y,z)` as shown below.
+
+![3D Pose Keypoints](./assets/pose_3d_keypoints.png)
+
+#### Known issues
+
+- Unfortunately, the orientation of the detected poses is not consistently upright and furthermore seems inconsistent between frames. To (partially) resolve this, we match key points between the 2D and 3D pose detections and derive the [best fitting rotation matrix](https://nghiaho.com/?page_id=671) between them.
+- The detected center hip joint, connecting both legs, is detected at a weird point for all 3D poses.
+- Due to the limited number of pixels available for detection, the overall quality of the 3D poses is not very consistent.
+
+### Step 5 - Train/Validation/Test Splitting
+
+In order to avoid data leakage between the training and testing data, we isolate all segments of `V010` to the test set.  
+The training and validation sets are made by performing a 80% train/20% validation split of the segments in the remaining videos.
 
 ## Setup
 
