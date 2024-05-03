@@ -21,7 +21,7 @@ import numpy as np
 base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if not base_path in sys.path:
     sys.path.append(base_path)
-from model.data import TennisDataset
+from model.data import TennisDataset, my_collate_fn
 from model.model_builder import build_tennis_embedder
 
 
@@ -49,6 +49,7 @@ class PreTrainer:
         self.model_save_path = model_save_path
         self.best_val_loss = float("inf")
         print("Using device:", self.device)
+    
 
     def train(self):
         # Keep track of training & validation loss history
@@ -101,9 +102,12 @@ class PreTrainer:
 
         return train_loss_history, val_loss_history
 
-    def evaluate(self, data_loader):
+    def evaluate(self, data_loader, test = False):
+        
         self.model.eval()
         total_loss = 0.0
+        if test:
+            test_loss_history = []
         with torch.no_grad():
             for pose3d, position2d, pose_graph, targets, mask in data_loader:
                 global_positions = position2d
@@ -122,14 +126,20 @@ class PreTrainer:
                 final_loss = (
                     masked_loss.sum() / mask.sum()
                 )  # Reduce the loss; sum and then divide by the number of unmasked elements
+                if test:
+                    test_loss_history.append(final_loss.item())
                 total_loss += final_loss.item()
 
-        avg_val_loss = total_loss / len(data_loader)
-        print(f"Validation Loss: {avg_val_loss}")
+        avg_loss = total_loss / len(data_loader)
+
+        if test:
+            print(f"Test Loss: {avg_loss}")
+        else:
+            print(f"Validation Loss: {avg_loss}")
 
         # Check directory and save model if this is the best validation loss so far
-        if avg_val_loss < self.best_val_loss:
-            self.best_val_loss = avg_val_loss
+        if avg_loss < self.best_val_loss and not test:
+            self.best_val_loss = avg_loss
             if not os.path.exists(self.model_save_path):
                 os.makedirs(self.model_save_path)
             torch.save(
@@ -137,10 +147,13 @@ class PreTrainer:
                 os.path.join(self.model_save_path, "best_model.pth"),
             )
             print(
-                f"Saving model at {self.model_save_path} with validation loss of {avg_val_loss}"
+                f"Saving model at {self.model_save_path} with validation loss of {avg_loss}"
             )
 
-        return avg_val_loss
+        if test:
+            return test_loss_history
+        else: 
+            return avg_loss
 
     def get_data_loader(self, data_path, batch_size, train=True):
         dataset = TennisDataset(labels_path=data_path)
@@ -148,204 +161,34 @@ class PreTrainer:
             dataset, batch_size=batch_size, shuffle=train, collate_fn=my_collate_fn
         )
         return data_loader
+    
 
+    def load_pretrained_model(self, model_weights_path):
+        self.model.load_state_dict(torch.load(model_weights_path))
+        self.model.to(self.device)
+        print(f"Model loaded from {model_weights_path}")
+    
+    def test_trained_model(self, test_path, save_path = None):
+        test_loader = self.get_data_loader(test_path, self.batch_size, train=False)
+        test_loss_history = self.evaluate(test_loader, test = True)
+        self.plot_loss(test_loss_history, save_path)
 
-#### Things to do with the collate function
-# - How do we want to handle np.object_ instances of pose3d and position2d? --> At the moment they are being ignored
-# - How do we want to do padding of sequence graph to same length? --> At the moment the last instance is repeated
-#### Things to do for loading data
-# - What do we want to do with the values being skipped?
-
-
-def pad_graphs(graphs, max_frames):
-    padded_graphs = []
-    for graph_list in graphs:
-        num_graphs = len(graph_list)
-        if num_graphs < max_frames:
-            last_graph = graph_list[-1]
-            additional_graphs = [last_graph] * (
-                max_frames - num_graphs
-            )  # Replicate last graph
-            padded_graph_list = graph_list + additional_graphs
+    
+    def plot_loss(self, test_loss_history, save_path = None):
+        plt.figure(figsize=(10, 6))  # Set the figure size for better visibility
+        plt.plot(test_loss_history, label="Test Loss", color='blue', linewidth=2.0)  # Make line blue and thicker
+        plt.xlabel("Batch Number")
+        plt.ylabel("Loss")
+        plt.title("Test Loss per Batch")  # Add a title for clarity
+        plt.xticks(range(len(test_loss_history)), range(1, len(test_loss_history)+1))  # Set x-ticks to be integer values of epochs
+        plt.grid(True)  # Enable grid for easier visualization
+        avg_loss = np.mean(test_loss_history)  # Calculate average loss
+        plt.axhline(y=avg_loss, color='r', linestyle='--', label=f"Average Loss: {avg_loss:.4f}")  # Add a horizontal line for average loss
+        plt.legend()
+        if save_path:
+            plt.savefig(save_path)
         else:
-            padded_graph_list = graph_list[:max_frames]
+            plt.show()
 
-        padded_graphs.append(padded_graph_list)
+        
 
-    return padded_graphs
-
-
-def my_collate_fn(batch):
-    pose3d = []
-    position2d = []
-    targets = []
-    all_graphs = []
-    graph_counts = []  # To count graphs per item in the batch
-    masks = []
-
-    for item in batch:
-        pose3d_item, position2d_item, pose_graph_items, target_item = item
-
-        # Check for None values and correct shapes
-        if (
-            pose3d_item is not None
-            and position2d_item is not None
-            and pose_graph_items is not None
-        ):
-            if (
-                pose3d_item.dtype != np.object_
-                and position2d_item.dtype != np.object_
-                and len(pose_graph_items) > 0
-            ):
-                sequence_graphs = pose_graph_items
-
-                # Ensure numpy arrays are of type float32, convert object arrays if necessary
-                # if pose3d_item.dtype == np.object_:
-                #     print('NP Object!!')
-                #     print("Pose3d: ", pose3d_item)
-                #     pose3d_item = np.vstack(pose3d_item).astype(np.float32)
-                #     target_item = np.vstack(target_item).astype(np.float32)
-                # if position2d_item.dtype == np.object_:
-                #     print('NP Object!!')
-                #     print("Position2d: ", position2d_item)
-                #     position2d_item = np.vstack(position2d_item).astype(np.float32)
-
-                if (
-                    pose3d_item.ndim == 3 and position2d_item.ndim == 2
-                ):  # Ensure the correct dimensionality
-                    graph_count = 0
-                    if isinstance(sequence_graphs, list):
-                        all_graphs.append(sequence_graphs)
-                        graph_count = len(sequence_graphs)  # Count graphs for this item
-                    else:
-                        print("Skipping a graph item due to incorrect type.")
-                    graph_counts.append(graph_count)
-
-                    pose3d.append(torch.tensor(pose3d_item, dtype=torch.float32))
-                    position2d.append(
-                        torch.tensor(position2d_item, dtype=torch.float32)
-                    )
-                    targets.append(torch.tensor(target_item, dtype=torch.float32))
-                    masks.append(
-                        torch.ones(len(pose_graph_items), dtype=torch.bool)
-                    )  # Mask of ones where data is valid
-
-                # else:
-                #     print(f"Skipping due to incorrect dimensions - Pose3D: {pose3d_item.shape}, Position2D: {position2d_item.shape}")
-            # else:
-            #     print("Skipping a batch item due to object dtype or graph being empty.")
-        # else:
-        #     print("Skipping a batch item due to None values.")
-
-    # print("Graphs per item in batch:", graph_counts)  # For Debugging
-
-    # Pad pose3d and position2d sequences if not empty
-    pose3d_padded = (
-        pad_sequence(pose3d, batch_first=True, padding_value=0.0)
-        if pose3d
-        else torch.Tensor()
-    )
-    position2d_padded = (
-        pad_sequence(position2d, batch_first=True, padding_value=0.0)
-        if position2d
-        else torch.Tensor()
-    )
-    targets_padded = (
-        pad_sequence(targets, batch_first=True, padding_value=0.0)
-        if targets
-        else torch.Tensor()
-    )
-    mask_padded = pad_sequence(
-        masks, batch_first=True, padding_value=0
-    )  # Pad mask with zeros
-
-    # print("Number of Graphs:", len(all_graphs))
-
-    # Create a list of Batch objects for each item in the batch
-    max_frames = max(
-        len(graphs) for graphs in all_graphs
-    )  # Maximum number of frames in the batch
-    # print("Max Frames:", max_frames)
-    if len(all_graphs) > 0:
-        all_graphs = pad_graphs(all_graphs, max_frames)
-        batched_graphs = [Batch.from_data_list(graph_list) for graph_list in all_graphs]
-    else:
-        batched_graphs = []
-
-    return pose3d_padded, position2d_padded, batched_graphs, targets_padded, mask_padded
-
-
-def validate_data_format(labels_path):
-    annotation_files = glob.glob(os.path.join(labels_path, "*_info.json"))
-    modified_files = []
-
-    for annotation_file in annotation_files:
-        with open(annotation_file, "r") as file:
-            annotation = json.load(file)
-
-        # Run checks for annotations that are true
-        if annotation["is_valid"] == True:
-            is_valid = True
-
-            # Data file paths
-            item_name = os.path.basename(annotation_file).replace("_info.json", "")
-            btm_positions_2d_path = os.path.join(
-                labels_path, f"{item_name}_player_btm_position.npy"
-            )
-            btm_poses_3d_path = os.path.join(
-                labels_path, f"{item_name}_player_btm_pose_3d_rot.npy"
-            )
-            top_positions_2d_path = os.path.join(
-                labels_path, f"{item_name}_player_top_position.npy"
-            )
-            top_poses_3d_path = os.path.join(
-                labels_path, f"{item_name}_player_top_pose_3d_rot.npy"
-            )
-
-            # Check if data files exist
-            if (
-                not os.path.exists(btm_positions_2d_path)
-                or not os.path.exists(btm_poses_3d_path)
-                or not os.path.exists(top_positions_2d_path)
-                or not os.path.exists(top_poses_3d_path)
-            ):
-                is_valid = False
-            else:
-                # Load data files
-                positions_2d = [
-                    np.load(btm_positions_2d_path, allow_pickle=True),
-                    np.load(top_positions_2d_path, allow_pickle=True),
-                ]
-                poses_3d = [
-                    np.load(btm_poses_3d_path, allow_pickle=True),
-                    np.load(top_poses_3d_path, allow_pickle=True),
-                ]
-
-                # Check data dimensions
-                # Check for None values and data types
-                for pos_2d in positions_2d:
-                    if pos_2d.ndim != 2 or pos_2d.shape[1] != 2:
-                        is_valid = False
-                    if pos_2d.dtype == np.object_ or pos_2d is None:
-                        is_valid = False
-                for pos_3d in poses_3d:
-                    if pos_3d.ndim != 3 or pos_3d.shape[1:] != (17, 3):
-                        is_valid = False
-                    if pos_3d.dtype == np.object_ or poses_3d is None:
-                        is_valid = False
-
-            # Update annotation if invalid
-            if not is_valid:
-                annotation["is_valid"] = False
-                modified_files.append(annotation_file)
-                with open(annotation_file, "w") as file:
-                    json.dump(annotation, file)
-
-    print(f"Total files: {len(annotation_files)}")
-    print(f"Invalid Files: {len(modified_files)}")
-    print(f"Valid Files: {len(annotation_files) - len(modified_files)}")
-    print(
-        f"Percentage of valid files: {(len(annotation_files) - len(modified_files)) / len(annotation_files) * 100}%"
-    )
-
-    return modified_files

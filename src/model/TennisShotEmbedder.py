@@ -39,7 +39,7 @@ class TennisShotEmbedder(nn.Module):
         self.output_module = output_module
         self.use_positional_encoding = use_positional_encoding
 
-    def forward(self, graphs, global_positions):
+    def forward(self, graphs, global_positions, just_embeddings = False):
         """
         Tennis Shot Embedder Forward Function
         ---
@@ -73,7 +73,8 @@ class TennisShotEmbedder(nn.Module):
 
         # Process sequence
         sequence_output = self.sequence_module(combined_embeddings)  # (batch, frame, dim)
-
+        if just_embeddings:
+            return sequence_output
         # Process final output
         output = self.output_module(sequence_output.reshape(-1, sequence_output.size(2)))  # Flatten to (batch * frame, dim)
         output = output.view(-1, sequence_output.size(1), 51)  # Reshape back to (batch, frame, 51)

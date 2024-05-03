@@ -6,6 +6,9 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 from torch_geometric.data import Data
+from torch.nn.utils.rnn import pad_sequence
+from torch_geometric.data import Batch
+from torch_geometric.data import Data
 
 
 # Constants
@@ -283,6 +286,7 @@ class ServeDataset(TennisDataset):
 
     def __init__(
         self,
+        labels_path=labels_path,
         videos=None,
         load_near=True,
         load_far=True,
@@ -309,7 +313,7 @@ class ServeDataset(TennisDataset):
 
     def __getitem__(self, index):
         # Load
-        poses_3d, positions_2d, pose_graph = super().__getitem__(index)
+        poses_3d, positions_2d, pose_graph, _ = super().__getitem__(index)
         label = self.class_map[self.annotations[index]["info"]["Result"]]
 
         # Return annotations
@@ -325,6 +329,7 @@ class HitDataset(TennisDataset):
     def __init__(
         self,
         videos=None,
+        labels_path=labels_path,
         load_near=True,
         load_far=True,
         in_memory=True,
@@ -366,7 +371,7 @@ class HitDataset(TennisDataset):
         - class_label: Label for the segment
         """
 
-        poses_3d, positions_2d, pose_graph = super().__getitem__(index)
+        poses_3d, positions_2d, pose_graph, _ = super().__getitem__(index)
         class_name = f'{self.annotations[index]["info"]["Side"]}_{self.annotations[index]["info"]["Type"]}'
         class_label = self.class_map[class_name]
         return poses_3d, positions_2d, pose_graph, class_label
@@ -386,3 +391,223 @@ if __name__ == "__main__":
     poses_3d, positions_2d, pose_graph = dataset.__getitem__(indx)
     print(poses_3d.shape)
     print(positions_2d.shape)
+
+
+
+
+def pad_graphs(graphs, max_frames):
+    padded_graphs = []
+    for graph_list in graphs:
+        num_graphs = len(graph_list)
+        if num_graphs < max_frames:
+            last_graph = graph_list[-1]
+            additional_graphs = [last_graph] * (
+                max_frames - num_graphs
+            )  # Replicate last graph
+            padded_graph_list = graph_list + additional_graphs
+        else:
+            padded_graph_list = graph_list[:max_frames]
+
+        padded_graphs.append(padded_graph_list)
+
+    return padded_graphs
+
+
+def my_collate_fn(batch):
+    pose3d = []
+    position2d = []
+    targets = []
+    all_graphs = []
+    graph_counts = []  # To count graphs per item in the batch
+    masks = []
+
+    for item in batch:
+        pose3d_item, position2d_item, pose_graph_items, target_item = item
+
+        # Check for None values and correct shapes
+        if (
+            pose3d_item is not None
+            and position2d_item is not None
+            and pose_graph_items is not None
+            and len(pose_graph_items) > 0
+        ):
+            
+            sequence_graphs = pose_graph_items
+
+
+            if (
+                pose3d_item.ndim == 3 and position2d_item.ndim == 2
+            ):  # Ensure the correct dimensionality
+                graph_count = 0
+                if isinstance(sequence_graphs, list):
+                    all_graphs.append(sequence_graphs)
+                    graph_count = len(sequence_graphs)  # Count graphs for this item
+                else:
+                    print("Skipping a graph item due to incorrect type.")
+                graph_counts.append(graph_count)
+
+                pose3d.append(torch.tensor(pose3d_item, dtype=torch.float32))
+                position2d.append(
+                    torch.tensor(position2d_item, dtype=torch.float32)
+                )
+                targets.append(torch.tensor(target_item, dtype=torch.float32))
+                masks.append(
+                    torch.ones(len(pose_graph_items), dtype=torch.bool)
+                )  # Mask of ones where data is valid
+
+
+    # Pad pose3d and position2d sequences if not empty
+    pose3d_padded = (
+        pad_sequence(pose3d, batch_first=True, padding_value=0.0)
+        if pose3d
+        else torch.Tensor()
+    )
+    position2d_padded = (
+        pad_sequence(position2d, batch_first=True, padding_value=0.0)
+        if position2d
+        else torch.Tensor()
+    )
+    targets_padded = (
+        pad_sequence(targets, batch_first=True, padding_value=0.0)
+        if targets
+        else torch.Tensor()
+    )
+    mask_padded = pad_sequence(
+        masks, batch_first=True, padding_value=0
+    )  # Pad mask with zeros
+
+    # print("Number of Graphs:", len(all_graphs))
+
+    # Create a list of Batch objects for each item in the batch
+    max_frames = max(
+        len(graphs) for graphs in all_graphs
+    )  # Maximum number of frames in the batch
+    # print("Max Frames:", max_frames)
+    if len(all_graphs) > 0:
+        all_graphs = pad_graphs(all_graphs, max_frames)
+        batched_graphs = [Batch.from_data_list(graph_list) for graph_list in all_graphs]
+    else:
+        batched_graphs = []
+
+    return pose3d_padded, position2d_padded, batched_graphs, targets_padded, mask_padded
+
+
+def validate_data_format(labels_path):
+    annotation_files = glob.glob(os.path.join(labels_path, "*_info.json"))
+    modified_files = []
+
+    for annotation_file in annotation_files:
+        with open(annotation_file, "r") as file:
+            annotation = json.load(file)
+
+        # Run checks for annotations that are true
+        if annotation["is_valid"] == True:
+            is_valid = True
+
+            # Data file paths
+            item_name = os.path.basename(annotation_file).replace("_info.json", "")
+            btm_positions_2d_path = os.path.join(
+                labels_path, f"{item_name}_player_btm_position.npy"
+            )
+            btm_poses_3d_path = os.path.join(
+                labels_path, f"{item_name}_player_btm_pose_3d_rot.npy"
+            )
+            top_positions_2d_path = os.path.join(
+                labels_path, f"{item_name}_player_top_position.npy"
+            )
+            top_poses_3d_path = os.path.join(
+                labels_path, f"{item_name}_player_top_pose_3d_rot.npy"
+            )
+
+            # Check if data files exist
+            if (
+                not os.path.exists(btm_positions_2d_path) 
+                or not os.path.exists(btm_poses_3d_path)
+                or not os.path.exists(top_positions_2d_path) 
+                or not os.path.exists(top_poses_3d_path)
+            ):
+                is_valid = False
+            else:
+                # Load data files
+                positions_2d = [np.load(btm_positions_2d_path, allow_pickle=True), np.load(top_positions_2d_path, allow_pickle=True)]
+                poses_3d = [np.load(btm_poses_3d_path, allow_pickle=True), np.load(top_poses_3d_path, allow_pickle=True)]
+
+                # Check data dimensions
+                # Check for None values and data types
+                for pos_2d in positions_2d:
+                    if pos_2d.ndim != 2 or pos_2d.shape[1] != 2:
+                        is_valid = False
+                    if pos_2d.dtype == np.object_ or pos_2d is None:
+                        is_valid = False
+                for pos_3d in poses_3d:
+                    if pos_3d.ndim != 3 or pos_3d.shape[1:] != (17, 3):
+                        is_valid = False
+                    if pos_3d.dtype == np.object_ or poses_3d is None:
+                        is_valid = False
+
+            # Update annotation if invalid
+            if not is_valid:
+                annotation["is_valid"] = False
+                modified_files.append(annotation_file)
+                with open(annotation_file, "w") as file:
+                    json.dump(annotation, file)
+
+    print(f"Total files: {len(annotation_files)}")
+    print(f"Invalid Files: {len(modified_files)}")
+    print(f"Valid Files: {len(annotation_files) - len(modified_files)}")
+    print(
+        f"Percentage of valid files: {(len(annotation_files) - len(modified_files)) / len(annotation_files) * 100}%"
+    )
+
+    return modified_files
+
+
+
+def downstream_task_collate_fn(batch):
+    pose3d = []
+    position2d = []
+    labels = []
+    all_graphs = []
+    graph_counts = []  # To count graphs per item in the batch
+
+    for item in batch:
+        pose3d_item, position2d_item, pose_graph_items, label_item = item
+
+        if pose3d_item is not None and position2d_item is not None and pose_graph_items is not None and len(pose_graph_items) > 0:
+
+            sequence_graphs = pose_graph_items
+
+            all_graphs.append(sequence_graphs)
+            graph_count = len(sequence_graphs) 
+            graph_counts.append(graph_count)
+
+            pose3d.append(torch.tensor(pose3d_item, dtype=torch.float32))
+            position2d.append(
+                torch.tensor(position2d_item, dtype=torch.float32)
+            )
+            labels.append(label_item) 
+        
+        else:
+            "Skipped a batch item!"
+
+    # Pad pose3d and position2d sequences if not empty
+    pose3d_padded = pad_sequence(pose3d, batch_first=True, padding_value=0.0)
+
+    position2d_padded = pad_sequence(position2d, batch_first=True, padding_value=0.0)
+
+    labels = torch.tensor(labels, dtype=torch.long)
+
+
+
+    # Create a list of Batch objects for each item in the batch
+    max_frames = max(
+        len(graphs) for graphs in all_graphs
+    )  # Maximum number of frames in the batch
+    # print("Max Frames:", max_frames)
+    if len(all_graphs) > 0:
+        all_graphs = pad_graphs(all_graphs, max_frames)
+        batched_graphs = [Batch.from_data_list(graph_list) for graph_list in all_graphs]
+    else:
+        batched_graphs = []
+
+    return pose3d_padded, position2d_padded, batched_graphs, labels
