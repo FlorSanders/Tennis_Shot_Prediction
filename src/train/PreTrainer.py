@@ -1,11 +1,5 @@
 import os
 import sys
-
-# Add this path to sys.path
-path_to_model_directory = os.path.abspath(os.path.join(__file__, os.pardir, os.pardir, "model"))
-if path_to_model_directory not in sys.path:
-    sys.path.append(path_to_model_directory)
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -22,8 +16,13 @@ from tqdm import tqdm
 import glob
 import json
 import numpy as np
-from data import TennisDataset
-from model_builder import build_tennis_embedder
+
+# Import model functions
+base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if not base_path in sys.path:
+    sys.path.append(base_path)
+from model.data import TennisDataset
+from model.model_builder import build_tennis_embedder
 
 
 class PreTrainer:
@@ -305,16 +304,22 @@ def validate_data_format(labels_path):
 
             # Check if data files exist
             if (
-                not os.path.exists(btm_positions_2d_path) 
+                not os.path.exists(btm_positions_2d_path)
                 or not os.path.exists(btm_poses_3d_path)
-                or not os.path.exists(top_positions_2d_path) 
+                or not os.path.exists(top_positions_2d_path)
                 or not os.path.exists(top_poses_3d_path)
             ):
                 is_valid = False
             else:
                 # Load data files
-                positions_2d = [np.load(btm_positions_2d_path, allow_pickle=True), np.load(top_positions_2d_path, allow_pickle=True)]
-                poses_3d = [np.load(btm_poses_3d_path, allow_pickle=True), np.load(top_poses_3d_path, allow_pickle=True)]
+                positions_2d = [
+                    np.load(btm_positions_2d_path, allow_pickle=True),
+                    np.load(top_positions_2d_path, allow_pickle=True),
+                ]
+                poses_3d = [
+                    np.load(btm_poses_3d_path, allow_pickle=True),
+                    np.load(top_poses_3d_path, allow_pickle=True),
+                ]
 
                 # Check data dimensions
                 # Check for None values and data types
