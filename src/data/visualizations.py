@@ -1,11 +1,17 @@
 import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 import json
 import cv2
-from data import (
+
+# Import data functions
+base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if not base_path in sys.path:
+    sys.path.append(base_path)
+from data.data import (
     read_segment_frames,
     read_segment_info,
     read_segment_2d_annotations,
@@ -673,6 +679,9 @@ def visualize_segment_3d_annotations(
         labels_path=labels_path,
         perform_scaling=True,
     )
+
+    player_btm_pose_3d_scaled *= 1.75
+    player_top_pose_3d_scaled *= 1.75
 
     # Create figure and axis
     fig, ax = make_3d_figax()

@@ -1,5 +1,18 @@
-from TennisShotEmbedder import TennisShotEmbedder, GraphModule, SequenceModule, PositionalEncodingModule, OutputModule
+import os
+import sys
 import yaml
+
+# Import data functions
+base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if not base_path in sys.path:
+    sys.path.append(base_path)
+from model.TennisShotEmbedder import (
+    TennisShotEmbedder,
+    GraphModule,
+    SequenceModule,
+    PositionalEncodingModule,
+    OutputModule,
+)
 
 
 SKELETON_SIZE = 17
@@ -24,8 +37,7 @@ def build_tennis_embedder(config_path: str) -> TennisShotEmbedder:
 
     pos_cfg = cfg["positional_encoder_module"]
     pos_encoding_module = PositionalEncodingModule(
-        hidden_dim=pos_cfg["hidden_dim"],
-        output_dim=graph_cfg["out_channels"]
+        hidden_dim=pos_cfg["hidden_dim"], output_dim=graph_cfg["out_channels"]
     )
 
     seq_cfg = cfg["sequence_module"]
@@ -45,8 +57,9 @@ def build_tennis_embedder(config_path: str) -> TennisShotEmbedder:
         num_layers=out_cfg["num_layers"],
     )
 
-    return TennisShotEmbedder(graph_module=graph_module, 
-                              positional_encoding_module=pos_encoding_module, 
-                              sequence_module=sequence_module,
-                              output_module=output_module)
-
+    return TennisShotEmbedder(
+        graph_module=graph_module,
+        positional_encoding_module=pos_encoding_module,
+        sequence_module=sequence_module,
+        output_module=output_module,
+    )
