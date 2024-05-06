@@ -78,6 +78,7 @@ class TennisDataset(torch.utils.data.Dataset):
         load_near=True,
         load_far=True,
         in_memory=True,
+        keep_labels=None,
     ):
         """
         Initialize TennisDataset
@@ -103,6 +104,7 @@ class TennisDataset(torch.utils.data.Dataset):
         self.load_near = load_near
         self.load_far = load_far
         self.in_memory = in_memory
+        self.keep_labels = keep_labels
 
         # Read videos from file system if None (default argument)
         if self.videos is None:
@@ -126,6 +128,7 @@ class TennisDataset(torch.utils.data.Dataset):
             self.poses_3d = []
             self.positions_2d = []
 
+
         # Read items from annotation files
         for annotation_file in annotation_files:
             # Parse annotation name
@@ -134,9 +137,14 @@ class TennisDataset(torch.utils.data.Dataset):
             # Load annotation
             with open(annotation_file, "r") as f:
                 annotation = json.load(f)
-
+            
+        
             # Decide whether to keep annotation
+            #print(annotation)
             keep = True
+            if self.keep_labels is not None:
+                if self.load_hit and annotation['is_serve'] == False: 
+                    keep = keep and (f'{annotation["info"]["Side"]}_{annotation["info"]["Type"]}' in self.keep_labels)
             keep = keep and annotation["is_valid"]
             keep = keep and (
                 (self.load_serve and annotation["is_serve"])
@@ -148,6 +156,8 @@ class TennisDataset(torch.utils.data.Dataset):
             )
             if not keep:
                 continue
+            
+            #if self.load_
 
             # Add item
             self.items.append(item_name)
@@ -310,6 +320,7 @@ class ServeDataset(TennisDataset):
         self.class_map = {}
         for i, c in enumerate(self.classes):
             self.class_map[c] = i
+    
 
     def __getitem__(self, index):
         # Load
@@ -333,6 +344,7 @@ class HitDataset(TennisDataset):
         load_near=True,
         load_far=True,
         in_memory=True,
+        keep_labels = None,
     ):
         # Load data
         super().__init__(
@@ -343,6 +355,7 @@ class HitDataset(TennisDataset):
             load_near=load_near,
             load_far=load_far,
             in_memory=in_memory,
+            keep_labels=keep_labels,
         )
 
         # Determine classes
@@ -357,6 +370,7 @@ class HitDataset(TennisDataset):
         self.class_map = {}
         for i, c in enumerate(self.classes):
             self.class_map[c] = i
+        
 
     def __getitem__(self, index):
         """
