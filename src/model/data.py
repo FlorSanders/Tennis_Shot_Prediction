@@ -13,7 +13,6 @@ from torch_geometric.data import Data
 
 # Constants
 data_path = os.path.abspath(os.path.join(__file__, "..", "..", "..", "data"))
-data_path = "/home/florsanders/adl_ai_tennis_coach/data"
 dataset = "tenniset"
 dataset_path = os.path.join(data_path, dataset)
 labels_path = os.path.join(dataset_path, "shot_labels")
@@ -128,7 +127,6 @@ class TennisDataset(torch.utils.data.Dataset):
             self.poses_3d = []
             self.positions_2d = []
 
-
         # Read items from annotation files
         for annotation_file in annotation_files:
             # Parse annotation name
@@ -137,14 +135,15 @@ class TennisDataset(torch.utils.data.Dataset):
             # Load annotation
             with open(annotation_file, "r") as f:
                 annotation = json.load(f)
-            
-        
+
             # Decide whether to keep annotation
-            #print(annotation)
             keep = True
             if self.keep_labels is not None:
-                if self.load_hit and annotation['is_serve'] == False: 
-                    keep = keep and (f'{annotation["info"]["Side"]}_{annotation["info"]["Type"]}' in self.keep_labels)
+                if self.load_hit and annotation["is_serve"] == False:
+                    keep = keep and (
+                        f'{annotation["info"]["Side"]}_{annotation["info"]["Type"]}'
+                        in self.keep_labels
+                    )
             keep = keep and annotation["is_valid"]
             keep = keep and (
                 (self.load_serve and annotation["is_serve"])
@@ -156,8 +155,8 @@ class TennisDataset(torch.utils.data.Dataset):
             )
             if not keep:
                 continue
-            
-            #if self.load_
+
+            # if self.load_
 
             # Add item
             self.items.append(item_name)
@@ -228,7 +227,9 @@ class TennisDataset(torch.utils.data.Dataset):
         # print('poses_3d', poses_3d.shape)
 
         # Transform & Scale 3D Poses
-        target_torso_height = 1 # Doesn't really matter what we normalize to -> picking one
+        target_torso_height = (
+            1  # Doesn't really matter what we normalize to -> picking one
+        )
         torso_height = np.sqrt(
             np.sum((poses_3d[:, 0, :] - poses_3d[:, 7, :]) ** 2, axis=1)
         )  # hips to belly
@@ -320,7 +321,6 @@ class ServeDataset(TennisDataset):
         self.class_map = {}
         for i, c in enumerate(self.classes):
             self.class_map[c] = i
-    
 
     def __getitem__(self, index):
         # Load
@@ -344,7 +344,7 @@ class HitDataset(TennisDataset):
         load_near=True,
         load_far=True,
         in_memory=True,
-        keep_labels = None,
+        keep_labels=None,
     ):
         # Load data
         super().__init__(
@@ -370,7 +370,6 @@ class HitDataset(TennisDataset):
         self.class_map = {}
         for i, c in enumerate(self.classes):
             self.class_map[c] = i
-        
 
     def __getitem__(self, index):
         """
@@ -405,8 +404,6 @@ if __name__ == "__main__":
     poses_3d, positions_2d, pose_graph = dataset.__getitem__(indx)
     print(poses_3d.shape)
     print(positions_2d.shape)
-
-
 
 
 def pad_graphs(graphs, max_frames):
@@ -445,9 +442,7 @@ def my_collate_fn(batch):
             and pose_graph_items is not None
             and len(pose_graph_items) > 0
         ):
-            
             sequence_graphs = pose_graph_items
-
 
             if (
                 pose3d_item.ndim == 3 and position2d_item.ndim == 2
@@ -461,14 +456,11 @@ def my_collate_fn(batch):
                 graph_counts.append(graph_count)
 
                 pose3d.append(torch.tensor(pose3d_item, dtype=torch.float32))
-                position2d.append(
-                    torch.tensor(position2d_item, dtype=torch.float32)
-                )
+                position2d.append(torch.tensor(position2d_item, dtype=torch.float32))
                 targets.append(torch.tensor(target_item, dtype=torch.float32))
                 masks.append(
                     torch.ones(len(pose_graph_items), dtype=torch.bool)
                 )  # Mask of ones where data is valid
-
 
     # Pad pose3d and position2d sequences if not empty
     pose3d_padded = (
@@ -535,16 +527,22 @@ def validate_data_format(labels_path):
 
             # Check if data files exist
             if (
-                not os.path.exists(btm_positions_2d_path) 
+                not os.path.exists(btm_positions_2d_path)
                 or not os.path.exists(btm_poses_3d_path)
-                or not os.path.exists(top_positions_2d_path) 
+                or not os.path.exists(top_positions_2d_path)
                 or not os.path.exists(top_poses_3d_path)
             ):
                 is_valid = False
             else:
                 # Load data files
-                positions_2d = [np.load(btm_positions_2d_path, allow_pickle=True), np.load(top_positions_2d_path, allow_pickle=True)]
-                poses_3d = [np.load(btm_poses_3d_path, allow_pickle=True), np.load(top_poses_3d_path, allow_pickle=True)]
+                positions_2d = [
+                    np.load(btm_positions_2d_path, allow_pickle=True),
+                    np.load(top_positions_2d_path, allow_pickle=True),
+                ]
+                poses_3d = [
+                    np.load(btm_poses_3d_path, allow_pickle=True),
+                    np.load(top_poses_3d_path, allow_pickle=True),
+                ]
 
                 # Check data dimensions
                 # Check for None values and data types
@@ -576,7 +574,6 @@ def validate_data_format(labels_path):
     return modified_files
 
 
-
 def downstream_task_collate_fn(batch):
     pose3d = []
     position2d = []
@@ -587,20 +584,22 @@ def downstream_task_collate_fn(batch):
     for item in batch:
         pose3d_item, position2d_item, pose_graph_items, label_item = item
 
-        if pose3d_item is not None and position2d_item is not None and pose_graph_items is not None and len(pose_graph_items) > 0:
-
+        if (
+            pose3d_item is not None
+            and position2d_item is not None
+            and pose_graph_items is not None
+            and len(pose_graph_items) > 0
+        ):
             sequence_graphs = pose_graph_items
 
             all_graphs.append(sequence_graphs)
-            graph_count = len(sequence_graphs) 
+            graph_count = len(sequence_graphs)
             graph_counts.append(graph_count)
 
             pose3d.append(torch.tensor(pose3d_item, dtype=torch.float32))
-            position2d.append(
-                torch.tensor(position2d_item, dtype=torch.float32)
-            )
-            labels.append(label_item) 
-        
+            position2d.append(torch.tensor(position2d_item, dtype=torch.float32))
+            labels.append(label_item)
+
         else:
             "Skipped a batch item!"
 
@@ -610,8 +609,6 @@ def downstream_task_collate_fn(batch):
     position2d_padded = pad_sequence(position2d, batch_first=True, padding_value=0.0)
 
     labels = torch.tensor(labels, dtype=torch.long)
-
-
 
     # Create a list of Batch objects for each item in the batch
     max_frames = max(
