@@ -31,7 +31,7 @@ Finally, the root directory of this repository also contains the project [slides
 Clone the repository to make a local copy and change directory.
 
 ```bash
-git clone git@github.com:FlorSanders/adl_ai_tennis_coach.git
+git clone git@github.com:FlorSanders/Tennis_Shot_Prediction.git
 cd adl_ai_tennis_coach
 ```
 
