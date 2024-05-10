@@ -1,5 +1,5 @@
 <div align="center">
-    <h1 align="center">Predictive Modeling of Tennis Player Poses and Ball Trajectory (TECO)</h1>
+    <h1 align="center">Predictive Pre-Training of Tennis Shot Embeddings</h1>
     <img src="assets/cover.png" alt="SOLA" width="600" >
 </div>
 
