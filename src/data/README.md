@@ -137,7 +137,7 @@ Next, initiate a conda environment from the `environment.yml` file.
 ```bash
 cd ./src/data
 conda env create -f environment.yml
-conda activate teco
+conda activate teco-data
 ```
 
 If you have a CUDA device available on your system, you may want to install [Tensorflow](https://www.tensorflow.org/install/pip) and [Pytorch](https://pytorch.org/get-started/locally/) again with CUDA enabled.

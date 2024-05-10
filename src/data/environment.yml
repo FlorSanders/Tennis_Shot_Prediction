@@ -1,4 +1,4 @@
-name: teco
+name: teco-data
 channels:
   - conda-forge
   - defaults
